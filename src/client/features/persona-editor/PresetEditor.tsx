@@ -7,24 +7,33 @@
  * module exists to satisfy; a per-form copy would silently diverge.
  *
  * Persona edits go through the domain's `writePersona`, which rewrites exactly
- * the persona plugin's config and leaves every other row structurally
- * untouched — so editing a persona can never disturb another plugin's settings.
+ * the persona plugin's config and leaves every other row structurally untouched —
+ * so editing a persona can never disturb another plugin's settings.
  */
 import * as React from 'react'
 import type { PresetDefinition } from '../../../shared/types.js'
 import type { PageState, PresetManagerStore } from '../../state/store.js'
 import { formatIssue } from '../../state/store.js'
-import { Card, Field, Notice, SectionHeader } from '../../components/primitives.js'
+import type { Translate } from '../../pages/PresetManagerPage.js'
+import {
+  Button,
+  Checkbox,
+  Field,
+  Loading,
+  Notice,
+  Panel,
+  Tabs,
+} from '../../components/primitives.js'
+import { IconArrowLeft, IconCheck } from '../../components/icons.js'
 import { readPersona, writePersona } from '../../../domain/persona-editor.js'
 
 export interface PresetEditorProps {
   readonly state: PageState
   readonly store: PresetManagerStore
-  readonly t: (key: string) => string
+  readonly t: Translate
   readonly mode: 'persona' | 'yaml'
   readonly onModeChange: (mode: 'persona' | 'yaml') => void
   readonly onBack: () => void
-  readonly onSaved: () => void
 }
 
 export function PresetEditor(props: PresetEditorProps): React.ReactElement {
@@ -32,87 +41,82 @@ export function PresetEditor(props: PresetEditorProps): React.ReactElement {
   const draft = state.draft
 
   if (draft === undefined) {
-    return React.createElement('p', { className: 'dshpm-muted' }, t('loading'))
+    return React.createElement(
+      Panel,
+      null,
+      React.createElement(Loading, { label: t('common.loading') }),
+    )
   }
 
   const persona = readPersona(draft)
 
   /** Apply a persona field change to the shared draft. */
-  const updatePersona = (patch: Partial<{ prefix: string; suffix: string; complete: boolean }>): void => {
+  const updatePersona = (
+    patch: Partial<{ prefix: string; suffix: string; complete: boolean }>,
+  ): void => {
     store.setDraft(writePersona(draft, patch))
   }
 
   /** Apply a metadata change to the shared draft. */
-  const updateMeta = (patch: Partial<Pick<PresetDefinition, 'name' | 'description'>>): void => {
+  const updateMeta = (
+    patch: Partial<Pick<PresetDefinition, 'name' | 'description'>>,
+  ): void => {
     store.setDraft({ ...draft, ...patch })
   }
 
   return React.createElement(
     'div',
-    { className: 'dshpm' },
+    { className: 'dshpm-stack' },
 
     React.createElement(
       'div',
       { className: 'dshpm-toolbar' },
       React.createElement(
-        'div',
-        { className: 'dshpm-tabs' },
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': mode === 'persona',
-            onClick: () => props.onModeChange('persona'),
-          },
-          t('editor.personaTitle'),
-        ),
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': mode === 'yaml',
-            onClick: () => props.onModeChange('yaml'),
-          },
-          t('editor.yamlTitle'),
-        ),
+        Button,
+        { variant: 'quiet', onClick: props.onBack },
+        React.createElement(IconArrowLeft, { size: 13 }),
+        t('common.back'),
       ),
+      React.createElement(Tabs, {
+        value: mode,
+        options: [
+          { value: 'persona', label: t('editor.tabPersona') },
+          { value: 'yaml', label: t('editor.tabYaml') },
+        ],
+        onChange: (next: string) => props.onModeChange(next === 'yaml' ? 'yaml' : 'persona'),
+      }),
       React.createElement('span', { className: 'dshpm-spacer' }),
       React.createElement(
-        'button',
-        { type: 'button', disabled: state.busy, onClick: () => void store.prepareSave() },
-        t('editor.validate'),
+        Button,
+        { disabled: state.busy, onClick: () => void store.prepareSave() },
+        t('editor.validateAndDiff'),
       ),
       React.createElement(
-        'button',
+        Button,
         {
-          type: 'button',
-          className: 'dshpm-primary',
+          variant: 'primary',
           disabled: state.busy,
           onClick: () => void store.save(),
         },
-        t('action.save'),
-      ),
-      React.createElement(
-        'button',
-        { type: 'button', onClick: props.onBack },
-        t('action.cancel'),
+        React.createElement(IconCheck, { size: 13 }),
+        t('editor.saveAndRegister'),
       ),
     ),
 
-    React.createElement('p', { className: 'dshpm-hint' }, t('editor.draftShared')),
+    React.createElement('p', { className: 'dshpm-hint' }, t('editor.sharedDraft')),
 
     // ---- metadata, shared by both modes
     React.createElement(
-      Card,
-      null,
-      React.createElement(SectionHeader, { title: t('detail.metadata') }),
+      Panel,
+      { title: t('editor.heading') },
       React.createElement(
         'div',
-        { className: 'dshpm-row' },
+        { className: 'dshpm-fields' },
         React.createElement(
           Field,
           { label: t('editor.name') },
           React.createElement('input', {
+            className: 'dshpm-input',
             type: 'text',
             value: draft.name ?? '',
             onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -123,6 +127,7 @@ export function PresetEditor(props: PresetEditorProps): React.ReactElement {
           Field,
           { label: t('editor.description') },
           React.createElement('input', {
+            className: 'dshpm-input',
             type: 'text',
             value: draft.description ?? '',
             onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -130,26 +135,30 @@ export function PresetEditor(props: PresetEditorProps): React.ReactElement {
           }),
         ),
       ),
-      React.createElement('p', { className: 'dshpm-mono' }, draft.id),
+      React.createElement(
+        'p',
+        { className: 'dshpm-mono dshpm-muted' },
+        `${draft.id} · ${t('detail.rowCount', { count: draft.plugins.length })}`,
+      ),
     ),
 
     mode === 'persona'
-      ? React.createElement(PersonaForm, { persona, t, updatePersona, present: persona.present })
+      ? React.createElement(PersonaForm, { persona, t, updatePersona })
       : React.createElement(YamlForm, { state, store, t }),
 
     state.yamlError === undefined
       ? null
       : React.createElement(Notice, {
           level: 'error',
-          message: t('editor.yamlInvalid'),
-          details: [state.yamlError],
+          title: t('editor.yamlErrorTitle'),
+          message: state.yamlError,
         }),
 
     state.validation === undefined || state.validation.ok
       ? null
       : React.createElement(Notice, {
           level: 'error',
-          message: t('editor.validate'),
+          title: t('editor.validateFailedTitle'),
           details: state.validation.errors.map(formatIssue),
         }),
 
@@ -159,21 +168,22 @@ export function PresetEditor(props: PresetEditorProps): React.ReactElement {
 
 function PersonaForm(props: {
   persona: ReturnType<typeof readPersona>
-  present: boolean
-  t: (key: string) => string
-  updatePersona: (patch: Partial<{ prefix: string; suffix: string; complete: boolean }>) => void
+  t: Translate
+  updatePersona: (
+    patch: Partial<{ prefix: string; suffix: string; complete: boolean }>,
+  ) => void
 }): React.ReactElement {
   const { persona, t, updatePersona } = props
   const { fields } = persona
 
   return React.createElement(
-    Card,
-    null,
-    React.createElement(SectionHeader, { title: t('editor.personaTitle') }),
+    Panel,
+    { title: t('editor.tabPersona') },
     React.createElement(
       Field,
       { label: t('editor.prefix') },
       React.createElement('textarea', {
+        className: 'dshpm-textarea',
         value: fields.prefix,
         spellCheck: false,
         onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -184,6 +194,7 @@ function PersonaForm(props: {
       Field,
       { label: t('editor.suffix') },
       React.createElement('textarea', {
+        className: 'dshpm-textarea',
         value: fields.suffix,
         spellCheck: false,
         onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -191,39 +202,35 @@ function PersonaForm(props: {
       }),
     ),
     React.createElement(
-      'label',
-      { className: 'dshpm-inline' },
-      React.createElement('input', {
-        type: 'checkbox',
-        className: 'dshpm-checkbox',
-        checked: fields.complete,
-        onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-          updatePersona({ complete: event.target.checked }),
-      }),
-      React.createElement('span', null, t('editor.complete')),
+      'div',
+      { className: 'dshpm-stack' },
+      React.createElement(
+        Checkbox,
+        {
+          checked: fields.complete,
+          onChange: (checked: boolean) => updatePersona({ complete: checked }),
+        },
+        t('editor.complete'),
+      ),
+      React.createElement('p', { className: 'dshpm-hint' }, t('editor.completeHint')),
+      persona.present
+        ? null
+        : React.createElement('p', { className: 'dshpm-hint' }, t('editor.noPersonaRow')),
     ),
-    React.createElement('p', { className: 'dshpm-hint' }, t('editor.completeHint')),
-    props.present
-      ? null
-      : React.createElement('p', { className: 'dshpm-hint' }, t('editor.personaMissing')),
   )
 }
 
 function YamlForm(props: {
   state: PageState
   store: PresetManagerStore
-  t: (key: string) => string
+  t: Translate
 }): React.ReactElement {
   const { state, store, t } = props
   return React.createElement(
-    Card,
-    null,
-    React.createElement(SectionHeader, {
-      title: t('editor.yamlTitle'),
-      hint: t('editor.yamlHint'),
-    }),
+    Panel,
+    { title: t('editor.yamlHeading'), hint: t('editor.yamlHint') },
     React.createElement('textarea', {
-      className: 'dshpm-code',
+      className: 'dshpm-textarea dshpm-textarea--code',
       value: state.yamlText,
       spellCheck: false,
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -239,15 +246,13 @@ function YamlForm(props: {
  * sees exactly which plugin rows are added, removed, or changed instead of
  * approving an opaque overwrite.
  */
-function DiffBlock(props: { state: PageState; t: (key: string) => string }): React.ReactElement | null {
+function DiffBlock(props: {
+  state: PageState
+  t: Translate
+}): React.ReactElement | null {
   const { state, t } = props
   const diff = state.diff
   if (diff === undefined) return null
-
-  const metadataChanges = diff.changedMetadata.map(
-    (field) =>
-      `${field.field}: ${field.before ?? '(空)'} → ${field.after ?? '(空)'}`,
-  )
 
   const nothing =
     diff.changedMetadata.length === 0 &&
@@ -255,54 +260,82 @@ function DiffBlock(props: { state: PageState; t: (key: string) => string }): Rea
     diff.removedPlugins.length === 0 &&
     diff.changedPlugins.length === 0
 
-  return React.createElement(
-    Card,
-    null,
-    React.createElement(SectionHeader, { title: t('editor.diffTitle') }),
-    nothing
-      ? React.createElement('p', { className: 'dshpm-muted' }, t('editor.noChanges'))
+  if (nothing) {
+    return React.createElement(
+      Panel,
+      { title: t('editor.diffHeading') },
+      React.createElement('p', { className: 'dshpm-muted' }, t('editor.noChanges')),
+    )
+  }
+
+  const group = (
+    key: string,
+    label: string,
+    mark: string,
+    rows: readonly { id: string; name: string }[],
+  ): React.ReactElement | null =>
+    rows.length === 0
+      ? null
       : React.createElement(
           'div',
-          { className: 'dshpm' },
-          metadataChanges.length === 0
-            ? null
-            : React.createElement(
-                'div',
-                null,
-                React.createElement('span', { className: 'dshpm-label' }, t('editor.diffMetadata')),
+          { className: 'dshpm-diff-group', key },
+          React.createElement('span', { className: 'dshpm-diff-label' }, label),
+          React.createElement(
+            'ul',
+            { className: 'dshpm-diff-list' },
+            rows.map((row, index) =>
+              React.createElement(
+                'li',
+                { className: 'dshpm-diff-item', key: index },
                 React.createElement(
-                  'ul',
-                  { className: 'dshpm-list' },
-                  metadataChanges.map((line, index) =>
-                    React.createElement('li', { key: index }, line),
-                  ),
+                  'span',
+                  { className: `dshpm-diff-mark dshpm-diff-mark--${mark}` },
+                  mark === 'add' ? '+' : mark === 'del' ? '−' : '~',
                 ),
+                React.createElement('span', { className: 'dshpm-mono' }, row.id),
+                React.createElement('span', { className: 'dshpm-muted' }, row.name),
               ),
-          ...[
-            { title: t('editor.diffAdded'), rows: diff.addedPlugins },
-            { title: t('editor.diffRemoved'), rows: diff.removedPlugins },
-            { title: t('editor.diffChanged'), rows: diff.changedPlugins },
-          ].map((group, index) =>
-            group.rows.length === 0
-              ? null
-              : React.createElement(
-                  'div',
-                  { key: index },
-                  React.createElement('span', { className: 'dshpm-label' }, group.title),
-                  React.createElement(
-                    'ul',
-                    { className: 'dshpm-list' },
-                    group.rows.map((row, rowIndex) =>
-                      React.createElement('li', { key: rowIndex }, `${row.id} — ${row.name}`),
-                    ),
-                  ),
-                ),
+            ),
+          ),
+        )
+
+  return React.createElement(
+    Panel,
+    { title: t('editor.diffHeading') },
+    diff.changedMetadata.length === 0
+      ? null
+      : React.createElement(
+          'div',
+          { className: 'dshpm-diff-group' },
+          React.createElement(
+            'span',
+            { className: 'dshpm-diff-label' },
+            t('editor.diffMetadata'),
           ),
           React.createElement(
-            'p',
-            { className: 'dshpm-muted' },
-            `${t('editor.diffUnchanged')}: ${diff.unchangedPlugins}`,
+            'ul',
+            { className: 'dshpm-diff-list' },
+            diff.changedMetadata.map((field, index) =>
+              React.createElement(
+                'li',
+                { className: 'dshpm-diff-item', key: index },
+                React.createElement('span', { className: 'dshpm-mono' }, field.field),
+                React.createElement(
+                  'span',
+                  { className: 'dshpm-muted' },
+                  `${field.before ?? '—'} → ${field.after ?? '—'}`,
+                ),
+              ),
+            ),
           ),
         ),
+    group('add', t('editor.diffAdded'), 'add', diff.addedPlugins),
+    group('del', t('editor.diffRemoved'), 'del', diff.removedPlugins),
+    group('chg', t('editor.diffChanged'), 'chg', diff.changedPlugins),
+    React.createElement(
+      'p',
+      { className: 'dshpm-muted' },
+      t('editor.diffUnchanged', { count: diff.unchangedPlugins }),
+    ),
   )
 }

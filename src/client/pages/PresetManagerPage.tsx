@@ -1,15 +1,18 @@
 /**
- * The settings page: one list, and one active pane.
+ * The settings page: one header, one active pane.
  *
  * The page is a plain view over {@link PresetManagerStore}; it holds no
  * authoritative state of its own. That is what keeps the list honest after every
  * operation — each mutation ends with a fresh Host snapshot, so what is on
  * screen is what the Host reported, not what the click hoped for.
+ *
+ * The Remote mount has its own first-class state. When it fails, the page shows
+ * the actual reason the gateway returned rather than a generic "load failed",
+ * because a mount failure is a defect and hiding its cause makes it unfixable.
  */
 import * as React from 'react'
-import type { ManagerSnapshot, PresetSummary } from '../../shared/types.js'
 import type { PageState, PresetManagerStore } from '../state/store.js'
-import { Notice, SectionHeader } from '../components/primitives.js'
+import { Notice } from '../components/primitives.js'
 import { PresetList } from '../features/preset-list/PresetList.js'
 import { PresetDetailView } from '../features/preset-list/PresetDetailView.js'
 import { PresetEditor } from '../features/persona-editor/PresetEditor.js'
@@ -19,14 +22,20 @@ import { ImportPanel } from '../features/preset-import/ImportPanel.js'
 import { ExportPanel } from '../features/preset-export/ExportPanel.js'
 import { DataPanel } from '../features/preset-history/DataPanel.js'
 
+/** The translate signature DSH's locale binding provides. */
+export type Translate = (
+  key: string,
+  params?: Record<string, string | number>,
+) => string
+
 export interface PageProps {
   readonly store: PresetManagerStore
   readonly useStore: () => PageState
-  readonly t: (key: string) => string
+  readonly t: Translate
 }
 
-/** Which modal-ish panel is open over the list. */
-type Overlay =
+/** Which panel is open over the list. */
+export type Overlay =
   | { readonly kind: 'none' }
   | { readonly kind: 'clone' }
   | { readonly kind: 'import' }
@@ -38,50 +47,77 @@ export function PresetManagerPage(props: PageProps): React.ReactElement {
   const state = useStore()
   const [overlay, setOverlay] = React.useState<Overlay>({ kind: 'none' })
 
-  React.useEffect(() => {
-    void store.load()
-  }, [store])
-
-  const snapshot: ManagerSnapshot | undefined = state.snapshot
-  const busy = state.busy || snapshot?.busy === true
-
   const closeOverlay = React.useCallback(() => {
     setOverlay({ kind: 'none' })
     store.dismissNotice()
   }, [store])
 
+  const busy = state.busy || state.snapshot?.busy === true
+  const ready = state.mount.status === 'ready'
+
   return React.createElement(
     'div',
     { className: 'dshpm' },
 
+    // ---- header
     React.createElement(
       'div',
-      { className: 'dshpm-header' },
-      React.createElement('h3', { className: 'dshpm-title' }, t('title')),
-      React.createElement('p', { className: 'dshpm-subtitle' }, t('subtitle')),
+      { className: 'dshpm-head' },
+      React.createElement(
+        'div',
+        { className: 'dshpm-head-text' },
+        React.createElement('h2', { className: 'dshpm-title' }, t('page.title')),
+        React.createElement('p', { className: 'dshpm-subtitle' }, t('page.subtitle')),
+      ),
+      React.createElement(
+        'div',
+        { className: 'dshpm-head-actions' },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            className: 'dshpm-btn',
+            disabled: busy || !ready,
+            onClick: () => void store.refresh(),
+          },
+          t('common.refresh'),
+        ),
+      ),
     ),
 
+    // ---- mount failure: the real reason, not a generic one
+    state.mount.status === 'failed'
+      ? React.createElement(Notice, {
+          level: 'error',
+          title: t('error.notReadyTitle'),
+          message: state.mount.error ?? t('error.notReadyBody'),
+        })
+      : null,
+
+    // ---- operation notice
     state.notice === undefined
       ? null
       : React.createElement(Notice, {
           level: state.notice.level,
+          ...(state.notice.title === undefined ? {} : { title: state.notice.title }),
           message: state.notice.message,
           ...(state.notice.details === undefined ? {} : { details: state.notice.details }),
           onDismiss: () => store.dismissNotice(),
+          dismissLabel: t('common.dismiss'),
         }),
 
-    snapshot === undefined
-      ? React.createElement('p', { className: 'dshpm-muted' }, t('loading'))
-      : React.createElement(DiagnosticsBanner, { snapshot, t }),
+    // ---- startup diagnostics
+    state.snapshot === undefined
+      ? null
+      : React.createElement(Diagnostics, { state, t }),
 
+    // ---- overlays
     overlay.kind === 'export'
       ? React.createElement(ExportPanel, {
           api: store.apiForPanel,
           id: overlay.id,
           t,
           onClose: closeOverlay,
-          onNotice: (level, message) =>
-            level === 'error' ? store.dismissNotice() : undefined,
         })
       : null,
 
@@ -89,7 +125,7 @@ export function PresetManagerPage(props: PageProps): React.ReactElement {
       ? React.createElement(CloneDialog, {
           store,
           t,
-          presets: snapshot?.presets ?? [],
+          presets: state.snapshot?.presets ?? [],
           onClose: closeOverlay,
           onCloned: closeOverlay,
         })
@@ -109,66 +145,23 @@ export function PresetManagerPage(props: PageProps): React.ReactElement {
       ? React.createElement(DataPanel, {
           store,
           t,
-          snapshot,
+          snapshot: state.snapshot,
           api: store.apiForPanel,
           onClose: closeOverlay,
         })
       : null,
 
-    // ---- primary toolbar
-    React.createElement(
-      'div',
-      { className: 'dshpm-toolbar' },
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          className: 'dshpm-primary',
-          disabled: busy || snapshot === undefined,
-          onClick: () => setOverlay({ kind: 'import' }),
-        },
-        t('action.import'),
-      ),
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          disabled: busy || snapshot === undefined,
-          onClick: () => setOverlay({ kind: 'clone' }),
-        },
-        t('action.clone'),
-      ),
-      React.createElement('span', { className: 'dshpm-spacer' }),
-      state.view.kind === 'list'
-        ? null
-        : React.createElement(
-            'button',
-            { type: 'button', onClick: () => store.backToList() },
-            t('back'),
-          ),
-      React.createElement(
-        'button',
-        { type: 'button', disabled: busy, onClick: () => void store.refresh() },
-        t('refresh'),
-      ),
-      React.createElement(
-        'button',
-        { type: 'button', disabled: busy, onClick: () => setOverlay({ kind: 'data' }) },
-        t('action.purge'),
-      ),
-    ),
-
-    busy ? React.createElement('p', { className: 'dshpm-muted' }, t('busy')) : null,
-
     // ---- active pane
-    renderPane(state, props, setOverlay),
+    renderPane(state, props, setOverlay, busy, ready),
   )
 }
 
 function renderPane(
   state: PageState,
   props: PageProps,
-  setOverlay: (overlay: Overlay) => void,
+  setOverlay: (next: Overlay) => void,
+  busy: boolean,
+  ready: boolean,
 ): React.ReactElement {
   const { store, t } = props
   const view = state.view
@@ -193,9 +186,8 @@ function renderPane(
       store,
       t,
       mode: view.mode,
-      onModeChange: (mode) => void store.setEditorMode(mode),
+      onModeChange: (mode: 'persona' | 'yaml') => store.setEditorMode(mode),
       onBack: () => void store.openDetail(view.id),
-      onSaved: () => void store.openDetail(view.id),
     })
   }
 
@@ -211,12 +203,15 @@ function renderPane(
   return React.createElement(PresetList, {
     state,
     t,
+    busy,
+    ready,
     onView: (id: string) => void store.openDetail(id),
     onEditPersona: (id: string) => void store.openEditor(id, 'persona'),
     onHistory: (id: string) => void store.openHistory(id),
     onExport: (id: string) => setOverlay({ kind: 'export', id }),
     onClone: () => setOverlay({ kind: 'clone' }),
     onImport: () => setOverlay({ kind: 'import' }),
+    onData: () => setOverlay({ kind: 'data' }),
     onRetry: () => void store.load(),
   })
 }
@@ -224,35 +219,25 @@ function renderPane(
 /**
  * Startup diagnostics.
  *
- * A quarantined file or a failed registration is shown as an explicit banner
- * rather than buried in the log: the user has to know that a preset they
- * believe exists did not load, and why.
+ * A quarantined file or a failed registration is shown explicitly rather than
+ * buried in the log: the user has to know that a preset they believe exists did
+ * not load, and why.
  */
-function DiagnosticsBanner(props: {
-  snapshot: ManagerSnapshot
-  t: (key: string) => string
+function Diagnostics(props: {
+  state: PageState
+  t: Translate
 }): React.ReactElement | null {
-  const { snapshot, t } = props
-  if (snapshot.diagnostics.length === 0) return null
-  const details = snapshot.diagnostics.map(
-    (issue) =>
-      `${issue.path === undefined ? '' : issue.path + ': '}${issue.message}${
-        issue.detail === undefined ? '' : `（${issue.detail}）`
-      }`,
-  )
+  const { state, t } = props
+  const diagnostics = state.snapshot?.diagnostics ?? []
+  if (diagnostics.length === 0) return null
   return React.createElement(Notice, {
-    level: snapshot.phase === 'degraded' ? 'warning' : 'info',
-    message: t('diagnostics.degraded'),
-    details,
+    level: state.snapshot?.phase === 'degraded' ? 'warning' : 'info',
+    title: t('diagnostics.heading'),
+    details: diagnostics.map(
+      (issue) =>
+        `${issue.path === undefined ? '' : issue.path + ': '}${issue.message}${
+          issue.detail === undefined ? '' : `（${issue.detail}）`
+        }`,
+    ),
   })
-}
-
-/** Shared helper: tone for a registration state. */
-export function registrationTone(
-  summary: PresetSummary,
-): 'ok' | 'warn' | 'err' | 'idle' {
-  if (summary.registration === 'failed') return 'err'
-  if (summary.health === 'broken') return 'err'
-  if (summary.registration === 'registered') return 'ok'
-  return 'idle'
 }

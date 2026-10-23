@@ -1,159 +1,212 @@
 {
+  "meta": {
+    "title": "Agent Preset Manager",
+    "description": "Register and manage agent presets at runtime without editing any DSH configuration file"
+  },
   "nav": "Presets",
-  "title": "Agent Preset Manager",
-  "subtitle": "Register agent presets at runtime without editing any DSH configuration file",
-  "loading": "Reading presets…",
-  "loadFailed": "Could not read the preset list",
-  "retry": "Retry",
-  "refresh": "Refresh",
-  "back": "Back to list",
-  "empty": "No preset is managed by this plugin yet. Start by copying any existing preset.",
-  "busy": "Working…",
-  "column": {
-    "name": "Name",
-    "id": "ID",
-    "ownership": "Ownership",
-    "plugins": "Plugins",
-    "state": "State",
-    "actions": "Actions"
+  "page": {
+    "title": "Agent Preset Manager",
+    "subtitle": "Presets register through the runtime API; DSH configuration files stay untouched."
+  },
+  "common": {
+    "loading": "Reading presets…",
+    "working": "Working…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "refresh": "Refresh",
+    "back": "Back to list",
+    "retry": "Retry",
+    "dismiss": "Dismiss",
+    "confirm": "Confirm",
+    "copy": "Copy",
+    "copied": "Copied",
+    "none": "None",
+    "unnamed": "Unnamed preset"
+  },
+  "phase": {
+    "starting": "Starting",
+    "ready": "Ready",
+    "degraded": "Some presets did not load",
+    "stopping": "Stopping",
+    "stopped": "Stopped"
+  },
+  "state": {
+    "registered": "Registered",
+    "notRegistered": "Not registered",
+    "registering": "Registering",
+    "failed": "Registration failed",
+    "healthy": "Healthy",
+    "broken": "Activation failed",
+    "unchecked": "Unchecked",
+    "default": "DSH default"
   },
   "ownership": {
     "managed": "This plugin",
     "builtin": "Built-in",
-    "third-party": "Third-party"
+    "thirdParty": "Third-party"
   },
-  "registration": {
-    "registered": "Registered",
-    "not-registered": "Not registered",
-    "registering": "Registering",
-    "failed": "Registration failed"
+  "list": {
+    "heading": "Presets",
+    "summary": "{total} presets, {managed} managed by this plugin",
+    "emptyTitle": "No custom presets yet",
+    "emptyBody": "Copy an existing preset as a starting point, or import a shared configuration. Built-in presets are never modified.",
+    "emptyActionClone": "Copy a preset",
+    "emptyActionImport": "Import a preset",
+    "columnPreset": "Preset",
+    "columnState": "State",
+    "columnPlugins": "Plugins",
+    "columnActions": "Actions",
+    "loadFailedTitle": "Could not read the preset list",
+    "loadFailedBody": "The Host interface did not respond. Confirm the plugin is enabled, then retry."
   },
-  "health": {
-    "healthy": "Healthy",
-    "broken": "Broken",
-    "unchecked": "Unchecked"
+  "detail": {
+    "backToList": "Back to list",
+    "compositionHeading": "Plugin composition",
+    "compositionHint": "The complete plugin rows this preset declares, shown read-only.",
+    "revisionLabel": "Revision",
+    "rowCount": "{count} rows",
+    "readOnlyNote": "Built-in and third-party presets can be viewed and copied only.",
+    "dataLocation": "Data directory",
+    "defaultWarning": "This preset is DSH's current default. Set DSH back to a built-in preset before deleting it, or a new session will reference a preset that no longer exists."
   },
   "action": {
     "view": "View",
     "clone": "Copy",
     "edit": "Edit",
     "editPersona": "Edit Persona",
-    "editYaml": "Advanced YAML",
+    "editYaml": "Edit YAML",
     "history": "History",
     "export": "Export",
-    "copyShare": "Copy share text",
-    "download": "Download YAML",
     "delete": "Delete",
-    "save": "Save",
     "restore": "Restore this version",
-    "import": "Import preset",
-    "preview": "Preview",
+    "import": "Import",
     "confirmImport": "Confirm import",
-    "cancel": "Cancel",
-    "purge": "Clear all plugin data"
-  },
-  "detail": {
-    "metadata": "Details",
-    "composition": "Plugin composition",
-    "compositionHint": "The complete plugin rows this preset declares, shown read-only.",
-    "readonlyNote": "Built-in and third-party presets can be viewed and copied, but never edited or deleted.",
-    "defaultBadge": "DSH default",
-    "dataDirectory": "Data directory"
+    "previewImport": "Preview import",
+    "purge": "Clear data"
   },
   "editor": {
-    "personaTitle": "Persona editor",
-    "yamlTitle": "Advanced YAML editor",
-    "prefix": "prefix (leading instruction)",
-    "suffix": "suffix (trailing instruction)",
-    "complete": "complete (replace the built-in prompt)",
-    "completeHint": "Off by default: the persona is added on top of the built-in prompt instead of replacing it.",
+    "heading": "Edit preset",
+    "tabPersona": "Persona",
+    "tabYaml": "Advanced YAML",
+    "sharedDraft": "Both editors share one draft; switching keeps your changes.",
     "name": "Name",
     "description": "Description",
-    "draftShared": "The Persona and YAML editors share one draft; switching keeps your changes.",
-    "yamlHint": "The full plugin composition, preserving the DSH YAML dialect, !!js expressions, and unknown fields.",
-    "yamlInvalid": "YAML could not be parsed",
-    "validate": "Validate and diff",
-    "noChanges": "No change detected.",
-    "diffTitle": "Changes about to be saved",
+    "prefix": "Prefix",
+    "suffix": "Suffix",
+    "complete": "Replace the built-in prompt",
+    "completeHint": "Off by default: the persona adds to the built-in prompt instead of replacing it.",
+    "noPersonaRow": "This preset has no persona row. Filling any field adds one.",
+    "yamlHeading": "Plugin composition",
+    "yamlHint": "Preserves the DSH YAML dialect, !!js expressions, and unknown fields.",
+    "yamlErrorTitle": "YAML could not be parsed",
+    "validateAndDiff": "Validate and diff",
+    "saveAndRegister": "Save and register",
+    "diffHeading": "Changes about to be saved",
     "diffMetadata": "Metadata",
-    "diffAdded": "Added plugins",
-    "diffRemoved": "Removed plugins",
-    "diffChanged": "Changed plugins",
-    "diffUnchanged": "Unchanged plugins",
-    "unsaved": "Unsaved changes",
-    "personaMissing": "This preset has no persona row; filling any field adds one."
+    "diffAdded": "Added",
+    "diffRemoved": "Removed",
+    "diffChanged": "Changed",
+    "diffUnchanged": "{count} unchanged",
+    "noChanges": "No change detected.",
+    "validateFailedTitle": "Validation failed; nothing was saved",
+    "saveSucceeded": "Saved and registered \"{name}\""
+  },
+  "clone": {
+    "heading": "Copy preset",
+    "source": "Source preset",
+    "newId": "New preset ID",
+    "newIdHint": "Lowercase letters, digits, dots, underscores, hyphens; must start with a letter or digit.",
+    "newIdInvalid": "That ID is not valid",
+    "newIdTaken": "That ID is already taken",
+    "name": "Display name",
+    "nameHint": "Leave empty to use \"<source name> copy\".",
+    "submit": "Create copy",
+    "succeeded": "Copied as \"{name}\""
   },
   "history": {
-    "title": "History",
-    "empty": "No history yet. Revisions appear here after you save a change.",
-    "savedAt": "Saved at",
-    "reason": "Origin",
+    "heading": "History",
+    "hint": "Restoring registers that revision as current. The current one is archived first, so restoring is itself undoable.",
+    "emptyTitle": "No history yet",
+    "emptyBody": "Previous versions appear here after you save a change.",
+    "columnSavedAt": "Saved at",
+    "columnPreset": "Revision",
+    "columnPlugins": "Plugins",
+    "columnOrigin": "Origin",
     "reasonCreate": "Created",
     "reasonSave": "Saved",
     "reasonImport": "Imported",
     "reasonRestore": "Restored",
-    "restoreWarning": "Restoring registers that revision as current; the current one is archived first."
-  },
-  "clone": {
-    "title": "Copy preset",
-    "source": "Source preset",
-    "newId": "New preset ID",
-    "newIdHint": "Lowercase letters, digits, dots, underscores, and hyphens only.",
-    "name": "Display name",
-    "submit": "Create copy",
-    "mustPickSource": "Choose a source preset",
-    "idRequired": "Enter a new preset ID"
+    "restored": "Revision restored"
   },
   "share": {
-    "title": "Export and share",
-    "risks": "The following may need review before sharing",
-    "noRisks": "No obvious secrets or local paths were detected.",
-    "copied": "Copied to clipboard",
-    "copyFailed": "Copy failed; select and copy the text below manually",
-    "manualCopy": "Manual copy area",
+    "heading": "Export and share",
+    "risksTitle": "Review before sharing",
+    "risksHint": "The following may contain secrets or local paths. The plugin reports them and never rewrites your preset.",
+    "noRisks": "No obvious secrets or local paths detected.",
+    "copyShare": "Copy share text",
+    "download": "Download YAML",
+    "manualHeading": "Share text",
+    "manualHint": "Select and copy here if the button failed.",
+    "copySucceeded": "Copied to clipboard",
+    "copyFailedTitle": "Copy failed",
+    "copyFailedBody": "The browser denied clipboard access. Select the text below and copy it manually.",
     "downloadStarted": "Download started"
   },
   "import": {
-    "title": "Import preset",
-    "paste": "Paste share text",
-    "pickFile": "Choose a YAML file",
+    "heading": "Import preset",
+    "pasteLabel": "Paste share text or YAML",
     "readClipboard": "Read clipboard",
-    "clipboardFailed": "Could not read the clipboard; paste the text manually",
-    "preview": "Parse and preview",
-    "previewTitle": "Import preview",
-    "risks": "Risks and compatibility notes",
-    "mustAcknowledge": "I have reviewed the risks above and confirm the import",
-    "idConflict": "ID conflict",
-    "idConflictHint": "That ID is taken; use the suggested ID below.",
-    "suggestedId": "Suggested ID",
-    "blockedMissing": "A required plugin package is missing; this preset would not activate",
-    "nothingApplied": "Preview writes no file and registers no preset."
+    "pickFile": "Choose file",
+    "clipboardFailed": "Could not read the clipboard; paste the text manually.",
+    "nothingApplied": "Preview writes no file and registers no preset.",
+    "previewHeading": "Import preview",
+    "idConflictTitle": "ID already in use",
+    "idConflictBody": "That ID exists. Use the suggested ID below or another free one.",
+    "newIdLabel": "Use this ID instead",
+    "risksTitle": "Risks and compatibility",
+    "warningsTitle": "Notes",
+    "errorsTitle": "Cannot import",
+    "compositionHeading": "Composition that would be imported",
+    "acknowledge": "I have read the above and confirm the import",
+    "blockedHint": "Blocking problems remain; resolve them to continue.",
+    "succeeded": "Preset imported and registered",
+    "emptyText": "Paste something first"
   },
-  "delete": {
-    "title": "Delete preset",
-    "confirm": "Delete the preset \"{id}\"? The final revision stays available in history.",
-    "defaultRiskTitle": "This preset is DSH's default",
-    "defaultRisk": "This plugin never changes DSH's own default-preset setting. After deletion a new session may reference a preset that no longer exists; set the default back to a built-in preset in DSH settings.",
-    "defaultRiskConfirm": "I understand and still want to delete it"
+  "remove": {
+    "heading": "Delete preset",
+    "body": "Delete \"{name}\"? The final revision stays in history and can be restored.",
+    "confirm": "Delete",
+    "defaultRiskTitle": "This is DSH's default preset",
+    "defaultRiskBody": "This plugin never changes DSH's own default-preset setting. After deletion a new session may reference a preset that no longer exists; set DSH back to a built-in preset.",
+    "defaultRiskConfirm": "I understand; delete anyway",
+    "succeeded": "Preset deleted; it can be restored from history"
   },
-  "diagnostics": {
-    "title": "Diagnostics",
-    "quarantine": "A preset file could not be parsed and was quarantined",
-    "degraded": "Some presets did not load correctly",
-    "copy": "Copy diagnostics"
-  },
-  "purge": {
-    "title": "Clear all plugin data",
-    "warning": "This deletes every preset, history entry, and metadata file under this plugin's data directory. It cannot be undone (a backup is written first).",
-    "instruction": "Type DELETE ALL PRESET DATA to confirm",
-    "done": "Plugin data cleared"
+  "data": {
+    "heading": "Plugin data",
+    "locationLabel": "Data directory",
+    "managedCount": "{count} presets managed by this plugin",
+    "keepNote": "Disabling or uninstalling the plugin does not delete these files. Clear them explicitly below when you want to.",
+    "purgeHeading": "Clear all plugin data",
+    "purgeWarning": "Deletes every preset, history entry, and metadata file under this plugin's directory. It cannot be undone, but a backup is written first.",
+    "purgeInstruction": "Type {phrase} to confirm",
+    "purgeSucceeded": "Plugin data cleared",
+    "purgeButton": "Clear all data"
   },
   "defaultNote": {
-    "title": "About the default preset",
-    "body": "This plugin never modifies the default preset DSH persists. You can pick a preset registered here with DSH's own selector; if you make one the default, set it back to a built-in preset before deleting it."
+    "heading": "About the default preset",
+    "body": "This plugin never modifies the default preset DSH persists. Use DSH's own selector to pick a preset registered here; if you make one the default, set it back to a built-in preset before deleting it."
   },
-  "meta": {
-    "title": "Agent Preset Manager",
-    "description": "Register and manage agent presets at runtime without editing any DSH configuration file"
+  "diagnostics": {
+    "heading": "Diagnostics",
+    "copy": "Copy diagnostics",
+    "quarantined": "A preset file could not be parsed and was quarantined"
+  },
+  "error": {
+    "notReadyTitle": "Host interface not ready",
+    "notReadyBody": "The plugin is still mounting its runtime interface. If this persists, reload the page.",
+    "genericTitle": "Operation failed",
+    "revisionConflict": "This preset changed in another tab. Reload it before saving.",
+    "notFound": "That preset no longer exists."
   }
 }

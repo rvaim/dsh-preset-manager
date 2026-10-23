@@ -5,8 +5,8 @@
  * parses, validates, checks module availability, and collects risks while
  * writing nothing; only the confirm step applies. That is why the confirm button
  * stays disabled until the user ticks the acknowledgement: an import that mounts
- * a composition the user did not read is exactly the failure this split exists
- * to prevent.
+ * a composition the user did not read is exactly the failure this split exists to
+ * prevent.
  *
  * No `!!js` expression is evaluated anywhere in this panel. Expressions are
  * listed as risks so the user can see what will be evaluated later, by the DSH
@@ -15,14 +15,28 @@
 import * as React from 'react'
 import type { ImportPreview } from '../../../shared/types.js'
 import type { PageState, PresetManagerStore } from '../../state/store.js'
-import { Card, Field, Notice, SectionHeader } from '../../components/primitives.js'
+import type { Translate } from '../../pages/PresetManagerPage.js'
+import {
+  Button,
+  Checkbox,
+  Field,
+  Notice,
+  Panel,
+} from '../../components/primitives.js'
+import { IconImport } from '../../components/icons.js'
 
 export interface ImportPanelProps {
   readonly store: PresetManagerStore
-  readonly t: (key: string) => string
+  readonly t: Translate
   readonly state: PageState
   readonly onClose: () => void
   readonly onImported: () => void
+}
+
+function line(issue: { message: string; path?: string; detail?: string }): string {
+  return `${issue.path === undefined ? '' : issue.path + ': '}${issue.message}${
+    issue.detail === undefined ? '' : `（${issue.detail}）`
+  }`
 }
 
 export function ImportPanel(props: ImportPanelProps): React.ReactElement {
@@ -38,13 +52,13 @@ export function ImportPanel(props: ImportPanelProps): React.ReactElement {
 
   const readClipboard = async (): Promise<void> => {
     try {
-      if (navigator.clipboard?.readText === undefined) throw new Error('clipboard API unavailable')
+      if (navigator.clipboard?.readText === undefined) throw new Error('clipboard unavailable')
       const content = await navigator.clipboard.readText()
       setText(content)
       setClipboardNote(undefined)
     } catch {
       // Reading the clipboard needs a permission this panel may not have; the
-      // paste box above remains the supported path, so this is a hint, not an error.
+      // paste box remains the supported path, so this is a hint, not an error.
       setClipboardNote(t('import.clipboardFailed'))
     }
   }
@@ -78,77 +92,103 @@ export function ImportPanel(props: ImportPanelProps): React.ReactElement {
     preview !== undefined && acknowledged && !blockedByConflict && !blockedByValidation && !state.busy
 
   return React.createElement(
-    'div',
-    { className: 'dshpm' },
+    Panel,
+    {
+      title: t('import.heading'),
+      hint: t('import.nothingApplied'),
+      footer: React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Button, { onClick: props.onClose }, t('common.cancel')),
+        React.createElement('span', { className: 'dshpm-spacer' }),
+        preview === undefined
+          ? React.createElement(
+              Button,
+              {
+                variant: 'primary',
+                disabled: text.trim() === '' || state.busy,
+                onClick: () => void doPreview(),
+              },
+              t('action.previewImport'),
+            )
+          : React.createElement(
+              Button,
+              {
+                variant: 'primary',
+                disabled: !canConfirm,
+                onClick: () => void doImport(),
+              },
+              React.createElement(IconImport, { size: 13 }),
+              t('action.confirmImport'),
+            ),
+      ),
+    },
+
+    // ---- source
     React.createElement(
-      Card,
-      null,
-      React.createElement(SectionHeader, {
-        title: t('import.title'),
-        hint: t('import.nothingApplied'),
+      Field,
+      { label: t('import.pasteLabel') },
+      React.createElement('textarea', {
+        className: 'dshpm-textarea dshpm-textarea--code',
+        value: text,
+        spellCheck: false,
+        placeholder: t('import.emptyText'),
+        onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setText(event.target.value),
       }),
+    ),
 
+    clipboardNote === undefined
+      ? null
+      : React.createElement(Notice, { level: 'warning', message: clipboardNote }),
+
+    React.createElement(
+      'div',
+      { className: 'dshpm-toolbar' },
       React.createElement(
-        Field,
-        { label: t('import.paste') },
-        React.createElement('textarea', {
-          className: 'dshpm-code',
-          value: text,
-          spellCheck: false,
-          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setText(event.target.value),
-        }),
+        Button,
+        { small: true, onClick: () => void readClipboard() },
+        t('import.readClipboard'),
       ),
-
-      clipboardNote === undefined
-        ? null
-        : React.createElement(Notice, { level: 'warning', message: clipboardNote }),
-
       React.createElement(
-        'div',
-        { className: 'dshpm-actions' },
-        React.createElement(
-          'button',
-          { type: 'button', onClick: () => void readClipboard() },
-          t('import.readClipboard'),
-        ),
-        React.createElement(
-          'button',
-          { type: 'button', onClick: () => fileInput.current?.click() },
-          t('import.pickFile'),
-        ),
-        React.createElement('input', {
-          ref: fileInput,
-          type: 'file',
-          accept: '.yml,.yaml,.txt',
-          style: { display: 'none' },
-          onChange: (event: React.ChangeEvent<HTMLInputElement>) => void onFile(event),
-        }),
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            className: 'dshpm-primary',
-            disabled: text.trim() === '' || state.busy,
-            onClick: () => void doPreview(),
-          },
-          t('import.preview'),
-        ),
-        React.createElement('button', { type: 'button', onClick: props.onClose }, t('action.cancel')),
+        Button,
+        { small: true, onClick: () => fileInput.current?.click() },
+        t('import.pickFile'),
       ),
+      React.createElement('input', {
+        ref: fileInput,
+        type: 'file',
+        accept: '.yml,.yaml,.txt',
+        style: { display: 'none' },
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => void onFile(event),
+      }),
     ),
 
     preview === undefined
       ? null
       : React.createElement(
-          Card,
+          React.Fragment,
           null,
-          React.createElement(SectionHeader, { title: t('import.previewTitle') }),
+
+          React.createElement('hr', { className: 'dshpm-divider' }),
 
           React.createElement(
             'div',
-            { className: 'dshpm-badges' },
-            React.createElement('span', { className: 'dshpm-mono' }, preview.definition.id),
-            React.createElement('span', { className: 'dshpm-mono' }, `formatVersion ${preview.document.formatVersion}`),
+            { className: 'dshpm-row-meta' },
+            React.createElement(
+              'span',
+              { className: 'dshpm-mono' },
+              preview.definition.id,
+            ),
+            React.createElement(
+              'span',
+              { className: 'dshpm-count' },
+              `formatVersion ${preview.document.formatVersion}`,
+            ),
+            React.createElement(
+              'span',
+              { className: 'dshpm-count' },
+              t('detail.rowCount', { count: preview.definition.plugins.length }),
+            ),
           ),
 
           preview.definition.name === undefined
@@ -161,22 +201,22 @@ export function ImportPanel(props: ImportPanelProps): React.ReactElement {
           // A conflict needs a new id before the import can proceed.
           preview.idConflict.conflict
             ? React.createElement(
-                'div',
-                { className: 'dshpm' },
+                React.Fragment,
+                null,
                 React.createElement(Notice, {
                   level: 'warning',
-                  message: `${t('import.idConflict')}: ${preview.definition.id}`,
-                  details: [t('import.idConflictHint')],
+                  title: t('import.idConflictTitle'),
+                  message: t('import.idConflictBody'),
+                  details:
+                    preview.idConflict.suggestedId === undefined
+                      ? []
+                      : [`${t('import.newIdLabel')}: ${preview.idConflict.suggestedId}`],
                 }),
                 React.createElement(
                   Field,
-                  {
-                    label: t('import.suggestedId'),
-                    ...(preview.idConflict.suggestedId === undefined
-                      ? {}
-                      : { hint: preview.idConflict.suggestedId }),
-                  },
+                  { label: t('import.newIdLabel') },
                   React.createElement('input', {
+                    className: 'dshpm-input dshpm-input--mono',
                     type: 'text',
                     value: resolveId,
                     placeholder: preview.idConflict.suggestedId ?? '',
@@ -191,73 +231,51 @@ export function ImportPanel(props: ImportPanelProps): React.ReactElement {
             ? null
             : React.createElement(Notice, {
                 level: 'error',
-                message: t('import.previewTitle'),
-                details: preview.validation.errors.map(formatLine),
+                title: t('import.errorsTitle'),
+                details: preview.validation.errors.map(line),
               }),
 
           preview.risks.length === 0
             ? null
             : React.createElement(Notice, {
                 level: 'warning',
-                message: t('import.risks'),
-                details: preview.risks.map(formatLine),
+                title: t('import.risksTitle'),
+                details: preview.risks.map(line),
               }),
 
           preview.validation.warnings.length === 0
             ? null
             : React.createElement(Notice, {
                 level: 'info',
-                message: t('import.risks'),
-                details: preview.validation.warnings.map(formatLine),
+                title: t('import.warningsTitle'),
+                details: preview.validation.warnings.map(line),
               }),
 
           // The complete composition, so the user approves what will actually mount.
-          React.createElement('textarea', {
-            className: 'dshpm-code',
-            readOnly: true,
-            value: preview.yaml,
-            spellCheck: false,
-            'aria-label': t('import.previewTitle'),
-          }),
-
           React.createElement(
-            'label',
-            { className: 'dshpm-inline' },
-            React.createElement('input', {
-              type: 'checkbox',
-              className: 'dshpm-checkbox',
-              checked: acknowledged,
-              onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-                setAcknowledged(event.target.checked),
+            Field,
+            { label: t('import.compositionHeading') },
+            React.createElement('textarea', {
+              className: 'dshpm-textarea dshpm-textarea--code',
+              readOnly: true,
+              value: preview.yaml,
+              spellCheck: false,
             }),
-            React.createElement('span', null, t('import.mustAcknowledge')),
           ),
 
           React.createElement(
-            'div',
-            { className: 'dshpm-actions' },
-            React.createElement(
-              'button',
-              {
-                type: 'button',
-                className: 'dshpm-primary',
-                disabled: !canConfirm,
-                onClick: () => void doImport(),
-              },
-              t('action.confirmImport'),
-            ),
-            React.createElement(
-              'button',
-              { type: 'button', onClick: () => store.clearPreview() },
-              t('action.cancel'),
-            ),
+            Checkbox,
+            {
+              checked: acknowledged,
+              disabled: blockedByValidation,
+              onChange: setAcknowledged,
+            },
+            t('import.acknowledge'),
           ),
+
+          blockedByValidation || blockedByConflict
+            ? React.createElement('p', { className: 'dshpm-hint' }, t('import.blockedHint'))
+            : null,
         ),
   )
-}
-
-function formatLine(issue: { message: string; path?: string; detail?: string }): string {
-  return `${issue.path === undefined ? '' : issue.path + ': '}${issue.message}${
-    issue.detail === undefined ? '' : `（${issue.detail}）`
-  }`
 }

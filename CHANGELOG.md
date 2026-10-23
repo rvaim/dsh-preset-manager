@@ -5,6 +5,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-23
+
+### Fixed
+
+- **Every Remote call failed with `gateway/binding-invalid`.** The gateway
+  validates a Remote binding with `typertRemote.service === original`, where
+  `original` is the object published under the service key. The face was spread
+  into a second object while `service` still pointed at the first one, so the
+  identity check failed and the page reported "Host interface not ready" for a
+  reason that looked like a transport fault. The binding now attaches to the
+  object that is actually provided, and a regression test pins the invariant.
+- **The page rendered locale keys instead of text** (`action.import`,
+  `common.refresh`, …). DSH's locale service resolves a key with a flat
+  `dict[key]` lookup; it does not walk nested objects. The dictionaries are now
+  flattened before registration, and a test asserts both languages carry the
+  same flat key set with the placeholders the page interpolates.
+
+## [0.1.1] - 2026-10-23
+
+Internal build used while diagnosing 0.1.2; not published separately.
+
 ## [0.1.0] - 2026-10-23
 
 First public release.

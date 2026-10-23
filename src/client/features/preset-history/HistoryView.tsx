@@ -7,14 +7,15 @@
  * mistake" expects.
  */
 import * as React from 'react'
-import type { PageState } from '../../state/store.js'
-import type { PresetManagerStore } from '../../state/store.js'
-import { Badge, Card, SectionHeader } from '../../components/primitives.js'
+import type { PageState, PresetManagerStore } from '../../state/store.js'
+import type { Translate } from '../../pages/PresetManagerPage.js'
+import { Button, Chip, EmptyState, Panel } from '../../components/primitives.js'
+import { IconArrowLeft, IconHistory } from '../../components/icons.js'
 
 export interface HistoryViewProps {
   readonly state: PageState
   readonly store: PresetManagerStore
-  readonly t: (key: string) => string
+  readonly t: Translate
   readonly onBack: () => void
 }
 
@@ -28,16 +29,29 @@ const REASON_KEY: Record<string, string> = {
 export function HistoryView(props: HistoryViewProps): React.ReactElement {
   const { state, store, t } = props
   const entries = state.history
+  const id = state.view.kind === 'history' ? state.view.id : ''
 
   return React.createElement(
     'div',
-    { className: 'dshpm' },
+    { className: 'dshpm-stack' },
     React.createElement(
-      Card,
-      null,
-      React.createElement(SectionHeader, { title: t('history.title'), hint: t('history.restoreWarning') }),
+      'div',
+      { className: 'dshpm-toolbar' },
+      React.createElement(
+        Button,
+        { variant: 'quiet', onClick: props.onBack },
+        React.createElement(IconArrowLeft, { size: 13 }),
+        t('common.back'),
+      ),
+    ),
+    React.createElement(
+      Panel,
+      { title: t('history.heading'), hint: t('history.hint') },
       entries.length === 0
-        ? React.createElement('p', { className: 'dshpm-muted' }, t('history.empty'))
+        ? React.createElement(EmptyState, {
+            title: t('history.emptyTitle'),
+            body: t('history.emptyBody'),
+          })
         : React.createElement(
             'table',
             { className: 'dshpm-table' },
@@ -47,11 +61,11 @@ export function HistoryView(props: HistoryViewProps): React.ReactElement {
               React.createElement(
                 'tr',
                 null,
-                React.createElement('th', null, t('history.savedAt')),
-                React.createElement('th', null, t('column.name')),
-                React.createElement('th', null, t('column.plugins')),
-                React.createElement('th', null, t('history.reason')),
-                React.createElement('th', null, t('column.actions')),
+                React.createElement('th', null, t('history.columnSavedAt')),
+                React.createElement('th', null, t('history.columnPreset')),
+                React.createElement('th', null, t('history.columnPlugins')),
+                React.createElement('th', null, t('history.columnOrigin')),
+                React.createElement('th', null, ''),
               ),
             ),
             React.createElement(
@@ -67,32 +81,32 @@ export function HistoryView(props: HistoryViewProps): React.ReactElement {
                     null,
                     React.createElement(
                       'div',
-                      { className: 'dshpm-name' },
+                      { style: { display: 'flex', flexDirection: 'column', gap: 2 } },
                       React.createElement('span', null, entry.name ?? entry.revision.slice(0, 12)),
-                      React.createElement('span', { className: 'dshpm-mono' }, entry.revision.slice(0, 12)),
+                      React.createElement(
+                        'span',
+                        { className: 'dshpm-mono dshpm-muted' },
+                        entry.revision.slice(0, 12),
+                      ),
                     ),
                   ),
-                  React.createElement('td', null, String(entry.pluginCount)),
+                  React.createElement('td', { className: 'dshpm-num' }, String(entry.pluginCount)),
                   React.createElement(
                     'td',
                     null,
-                    React.createElement(
-                      Badge,
-                      { tone: 'plain' },
-                      t(REASON_KEY[entry.reason] ?? 'history.reasonSave'),
-                    ),
+                    React.createElement(Chip, null, t(REASON_KEY[entry.reason] ?? 'history.reasonSave')),
                   ),
                   React.createElement(
                     'td',
-                    null,
+                    { style: { textAlign: 'right' } },
                     React.createElement(
-                      'button',
+                      Button,
                       {
-                        type: 'button',
+                        small: true,
                         disabled: state.busy,
-                        onClick: () =>
-                          void store.restoreRevision(state.view.kind === 'history' ? state.view.id : '', entry.revision),
+                        onClick: () => void store.restoreRevision(id, entry.revision),
                       },
+                      React.createElement(IconHistory, { size: 12 }),
                       t('action.restore'),
                     ),
                   ),
@@ -100,11 +114,6 @@ export function HistoryView(props: HistoryViewProps): React.ReactElement {
               ),
             ),
           ),
-    ),
-    React.createElement(
-      'div',
-      { className: 'dshpm-toolbar' },
-      React.createElement('button', { type: 'button', onClick: props.onBack }, t('back')),
     ),
   )
 }

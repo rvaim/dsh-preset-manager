@@ -1,6 +1,6 @@
 {
   "name": "@rvaim/dsh-preset-manager",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "DeepSeek Harness Agent preset manager: register and manage agent presets at runtime without editing any DSH configuration file.",
   "keywords": [
     "deepseek-harness",
@@ -67,9 +67,10 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "node scripts/run-tests.mjs",
-    "verify": "npm run typecheck && npm run test && npm run build",
+    "verify": "npm run typecheck && npm run test && npm run build && npm run verify:binding",
     "prepublishOnly": "npm run verify",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "verify:binding": "node scripts/verify-binding.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

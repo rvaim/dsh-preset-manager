@@ -57,6 +57,22 @@ DSH 的 Agent 预设原本只能在 Cordis 组合（`cordis.patch.yml` 或 Bundl
 
 **未经人工点击确认的部分，我不宣称已通过视觉验收。**
 
+### 0.1.2 修复说明
+
+上一版（0.1.0）在真实页面上有两个缺陷，均已在 0.1.2 修复：
+
+1. **所有 Remote 调用失败，页面显示「Host 接口尚未就绪」。**
+   根因是 gateway 的绑定校验要求 `typertRemote.service === 被提供的对象本身`。
+   原实现把 face 展开成第二个对象，`service` 却指向第一个，身份校验失败，
+   每次调用都得到 `gateway/binding-invalid`。现在绑定直接挂在被提供的对象上，
+   并有回归测试锁定这一约束（`scripts/verify-binding.mjs`、`src/tests/unit/remote-binding.test.ts`）。
+
+2. **按钮显示 `action.import` 这类键名而不是文案。**
+   根因是 DSH 的 locale 服务用扁平的 `dict[key]` 查表，不会遍历嵌套对象。
+   原字典是嵌套树，只有顶层键能解析，带点的键全部回退成键名本身。
+   现在注册前会扁平化，并有测试断言中英文键集合一致、占位符齐全
+   （`src/tests/unit/locale.test.ts`）。
+
 ---
 
 ## 4. 当前 DSH 不支持的部分（如实说明）

@@ -26,6 +26,7 @@ import type {
 } from '../../shared/types.js'
 import type { PresetManagerService } from '../application/preset-manager-service.js'
 import type { ImportSource } from '../../sharing/preset-importer.js'
+import { PRESET_MANAGER_NAMESPACE, PRESET_MANAGER_SERVICE } from './descriptors.js'
 
 /**
  * The Host object the typert invocation dispatcher reflects over.
@@ -146,14 +147,35 @@ export function createRemoteFace(service: PresetManagerService): PresetManagerRe
     purge: (confirmation) => service.purge(confirmation),
   }
 
-  return {
-    ...face,
-    typertRemote: Object.freeze({
-      service: face,
-      serviceKey: 'presetManager',
-      namespace: 'presetManager',
-    }),
+  /**
+   * The provided object must be the same object its binding names.
+   *
+   * The gateway validates a Remote binding with `typertRemote.service ===
+   * original`, where `original` is the object resolved from the service key.
+   * Spreading the face into a second object and pointing `service` at the first
+   * one fails that identity check, and every call then dies with
+   * `gateway/binding-invalid` — which surfaces in the UI as "Host interface not
+   * ready". Attaching the binding to the object that is actually provided keeps
+   * the identity true by construction.
+   */
+  const provided = face as PresetManagerRemoteFace & {
+    typertRemote: {
+      readonly service: PresetManagerRemoteFace
+      readonly serviceKey: string
+      readonly namespace: string
+    }
   }
+  Object.defineProperty(provided, 'typertRemote', {
+    value: Object.freeze({
+      service: provided,
+      serviceKey: PRESET_MANAGER_SERVICE,
+      namespace: PRESET_MANAGER_NAMESPACE,
+    }),
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  })
+  return provided
 }
 
 /** Narrow an untrusted wire string to the import source union. */

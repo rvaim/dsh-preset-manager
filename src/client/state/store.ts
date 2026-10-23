@@ -9,6 +9,10 @@
  * Every mutation follows the same shape — mark busy, call the API, reload the
  * snapshot, record the outcome — so the page's list is always derived from what
  * the Host reports, never from an optimistic local guess.
+ *
+ * The store also owns the Remote mount state. That is what lets the page say
+ * "the Host interface is not ready, and here is why" instead of showing a dead
+ * list behind an unexplained error.
  */
 import type {
   HistoryEntry,
@@ -17,17 +21,18 @@ import type {
   PresetDefinition,
   PresetDetail,
   PresetDiff,
-  PresetSummary,
   ValidationReport,
 } from '../../shared/types.js'
 import type { PresetManagerApi } from '../api/remote-api.js'
-import { RemoteInvocationError } from '../api/remote-api.js'
+import { createApi, RemoteInvocationError } from '../api/remote-api.js'
+import type { MountState } from './mount-remote.js'
 
 /** A user-facing notice: the outcome of an operation, or a load failure. */
 export interface Notice {
   readonly level: 'info' | 'success' | 'warning' | 'error'
+  readonly title?: string
   readonly message: string
-  /** Detail lines, such as validation issues, shown in a collapsible block. */
+  /** Detail lines, such as validation issues. */
   readonly details?: readonly string[]
 }
 
@@ -39,6 +44,8 @@ export type PageView =
   | { readonly kind: 'history'; readonly id: string }
 
 export interface PageState {
+  /** Whether the Remote namespace is available, and why not. */
+  readonly mount: MountState
   readonly status: 'idle' | 'loading' | 'ready' | 'failed'
   readonly snapshot: ManagerSnapshot | undefined
   readonly view: PageView
@@ -62,6 +69,7 @@ export interface PageState {
 }
 
 const INITIAL: PageState = {
+  mount: { status: 'mounting' },
   status: 'idle',
   snapshot: undefined,
   view: { kind: 'list' },
@@ -84,31 +92,16 @@ export class PresetManagerStore {
   /**
    * Resolves the API lazily.
    *
-   * The page can mount before the Remote namespace is mounted, so the store
-   * takes a provider rather than an instance: an early call fails with an
-   * actionable message, and a later call uses the real proxy without the store
-   * having to be recreated.
+   * The page mounts before the Remote namespace exists, so the store takes a
+   * provider: an early call fails with an actionable message, and a later call
+   * uses the real proxy without the store having to be recreated.
    */
-  private readonly apiProvider: () => PresetManagerApi
+  private apiProvider: (() => PresetManagerApi) | undefined
   private state: PageState = INITIAL
   private readonly listeners = new Set<Listener>()
 
-  constructor(apiProvider: (() => PresetManagerApi) | PresetManagerApi) {
-    this.apiProvider = typeof apiProvider === 'function' ? apiProvider : () => apiProvider
-  }
-
-  private get api(): PresetManagerApi {
-    return this.apiProvider()
-  }
-
-  /**
-   * The API for the panels that call it directly.
-   *
-   * Export and data management are self-contained enough to own their own calls;
-   * exposing the resolved API keeps them from needing a second provider.
-   */
-  get apiForPanel(): PresetManagerApi {
-    return this.api
+  constructor(apiProvider?: () => PresetManagerApi) {
+    this.apiProvider = apiProvider
   }
 
   // ------------------------------------------------------------ observable
@@ -131,24 +124,63 @@ export class PresetManagerStore {
     this.set({ notice })
   }
 
+  // ------------------------------------------------------------------ mount
+
+  /**
+   * Record the Remote mount outcome.
+   *
+   * A ready mount installs the API and loads the list; a failed mount keeps the
+   * reason so the page can show it verbatim rather than a generic failure.
+   */
+  attachMount(state: MountState): void {
+    this.set({ mount: state })
+    if (state.status !== 'ready' || state.service === undefined) return
+    const service = state.service
+    this.apiProvider = () => createApi(service)
+    void this.load()
+  }
+
+  private get api(): PresetManagerApi {
+    if (this.apiProvider === undefined) {
+      throw new Error('Host 接口尚未就绪')
+    }
+    return this.apiProvider()
+  }
+
+  /** The API for panels that call it directly (export, data management). */
+  get apiForPanel(): PresetManagerApi {
+    return this.api
+  }
+
   // --------------------------------------------------------------- loading
 
-  /** Load the list. Called once when the page mounts. */
   async load(): Promise<void> {
-    this.set({ status: 'loading', notice: undefined })
-    try {
-      const snapshot = await this.api.snapshot()
-      this.set({ status: 'ready', snapshot })
-    } catch (error) {
+    if (this.apiProvider === undefined) {
       this.set({
         status: 'failed',
-        notice: describeFailure(error),
+        notice: {
+          level: 'error',
+          title: 'Host 接口尚未就绪',
+          message:
+            this.state.mount.status === 'failed'
+              ? this.state.mount.error ?? '挂载失败，未提供原因'
+              : '正在挂载运行时接口，请稍候。',
+        },
       })
+      return
+    }
+    this.set({ status: 'loading' })
+    try {
+      const snapshot = await this.api.snapshot()
+      this.set({ status: 'ready', snapshot, notice: undefined })
+    } catch (error) {
+      this.set({ status: 'failed', notice: describeFailure(error) })
     }
   }
 
   /** Re-read the list without flashing the loading state. */
   async refresh(): Promise<void> {
+    if (this.apiProvider === undefined) return
     try {
       const snapshot = await this.api.snapshot()
       this.set({ status: 'ready', snapshot })
@@ -159,7 +191,6 @@ export class PresetManagerStore {
 
   // ------------------------------------------------------------ navigation
 
-  /** Open one preset's read-only detail. */
   async openDetail(id: string): Promise<void> {
     this.set({ view: { kind: 'detail', id }, detail: undefined, notice: undefined })
     try {
@@ -198,31 +229,10 @@ export class PresetManagerStore {
   }
 
   /** Switch the editor mode, keeping the single shared draft untouched. */
-  async setEditorMode(mode: 'persona' | 'yaml'): Promise<void> {
+  setEditorMode(mode: 'persona' | 'yaml'): void {
     const view = this.state.view
     if (view.kind !== 'editor') return
-    if (mode === 'yaml') {
-      // Re-render the draft rather than the stored preset: the Persona form may
-      // have already changed it, and the YAML view must show that change.
-      const draft = this.state.draft
-      this.set({ view: { kind: 'editor', id: view.id, mode } })
-      if (draft !== undefined) await this.reflowYaml(draft)
-      return
-    }
     this.set({ view: { kind: 'editor', id: view.id, mode } })
-  }
-
-  private async reflowYaml(definition: PresetDefinition): Promise<void> {
-    try {
-      const yaml = await this.api.renderYaml(definition.id)
-      // `renderYaml` renders the *stored* preset; when the draft already differs
-      // the local render is closer to the truth, so keep the draft-derived text.
-      if (this.state.draft === definition) {
-        this.set({ yamlText: yaml })
-      }
-    } catch {
-      /* the editor still works with the draft it already has */
-    }
   }
 
   async openHistory(id: string): Promise<void> {
@@ -286,14 +296,17 @@ export class PresetManagerStore {
     try {
       const [validation, diff] = await Promise.all([
         this.api.validate(draft),
-        detail === undefined ? Promise.resolve(undefined) : this.api.diff(detail.definition, draft),
+        detail === undefined
+          ? Promise.resolve(undefined)
+          : this.api.diff(detail.definition, draft),
       ])
       this.set({ busy: false, validation, diff })
       if (!validation.ok) {
         this.notice({
           level: 'error',
-          message: '配置校验未通过，未保存',
-          details: validation.errors.map((issue) => formatIssue(issue)),
+          title: '配置校验未通过，尚未保存',
+          message: '',
+          details: validation.errors.map(formatIssue),
         })
         return false
       }
@@ -310,18 +323,15 @@ export class PresetManagerStore {
     if (draft === undefined) return false
     this.set({ busy: true, notice: undefined })
     try {
-      const result = await this.api.save({
+      await this.api.save({
         definition: draft,
         ...(draftRevision === undefined ? {} : { expectedRevision: draftRevision }),
       })
       await this.refresh()
-      this.set({
-        busy: false,
-        ...(result.preset === undefined ? {} : { draftRevision: undefined }),
-      })
+      this.set({ busy: false })
       this.notice({
         level: 'success',
-        message: `已保存并注册预设「${draft.name ?? draft.id}」`,
+        message: `已保存并注册「${draft.name ?? draft.id}」`,
       })
       // Re-read the editor state so the revision the next save compares against
       // is the one the Host now holds.
@@ -363,7 +373,10 @@ export class PresetManagerStore {
       await this.api.remove({ id, acknowledgedDefaultRisk })
       await this.refresh()
       this.set({ busy: false, view: { kind: 'list' }, detail: undefined })
-      this.notice({ level: 'success', message: '预设已删除，可在历史版本中恢复' })
+      this.notice({
+        level: 'success',
+        message: '预设已删除，可在历史版本中恢复',
+      })
       return true
     } catch (error) {
       this.set({ busy: false, notice: describeFailure(error) })
@@ -377,7 +390,7 @@ export class PresetManagerStore {
       await this.api.restore({ id, revision })
       await this.refresh()
       this.set({ busy: false })
-      this.notice({ level: 'success', message: '已恢复该历史版本' })
+      this.notice({ level: 'success', message: '已恢复该版本' })
       await this.openHistory(id)
       return true
     } catch (error) {
@@ -386,7 +399,7 @@ export class PresetManagerStore {
     }
   }
 
-  // ------------------------------------------------------------- import
+  // --------------------------------------------------------------- import
 
   /** Parse share text into a preview; nothing is applied yet. */
   async previewImport(text: string, source: 'share' | 'yaml-file'): Promise<boolean> {
@@ -458,16 +471,12 @@ export function describeFailure(error: unknown): Notice {
   if (error instanceof RemoteInvocationError) {
     return {
       level: 'error',
+      title: '操作失败',
       message: error.message,
       ...(error.details.length === 0
         ? {}
         : { details: error.details.map((issue) => formatIssue(issue)) }),
     }
   }
-  return { level: 'error', message: messageOf(error) }
-}
-
-/** Which presets the list may edit or delete. */
-export function isEditable(summary: PresetSummary): boolean {
-  return summary.ownership === 'managed'
+  return { level: 'error', title: '操作失败', message: messageOf(error) }
 }
