@@ -43,7 +43,7 @@ export interface PresetManagerRemoteFace {
 
   clone(
     sourceId: string,
-    newId: string,
+    newId: string | undefined,
     name: string | undefined,
     description: string | undefined,
   ): Promise<MutationResult>

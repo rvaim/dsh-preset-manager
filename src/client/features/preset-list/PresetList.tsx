@@ -1,25 +1,12 @@
-/**
- * The preset list.
- *
- * A row list, not a grid of cards: these are records with the same fields, and a
- * grid of equal cards would turn a scannable comparison into a hunt. Each row
- * carries identity, ownership, live state, and the actions that make sense for
- * that ownership — a built-in preset never shows Delete, because offering a
- * control and then refusing it is a worse answer than not offering it.
- */
+/** Native-style preset cards: purpose first, contextual actions in each footer. */
 import * as React from 'react'
 import type { PresetSummary } from '../../../shared/types.js'
 import type { PageState } from '../../state/store.js'
 import type { Translate } from '../../pages/PresetManagerPage.js'
-import {
-  Badge,
-  Button,
-  Chip,
-  EmptyState,
-  Loading,
-  Panel,
-} from '../../components/primitives.js'
-import { IconCopy, IconEdit, IconExport, IconHistory, IconImport } from '../../components/icons.js'
+import { ActionButton } from '../../components/ActionButton.js'
+import { Badge, Button, EmptyState, Loading, Panel } from '../../components/primitives.js'
+import { IconCopy, IconEdit, IconHistory, IconImport } from '../../components/icons.js'
+import { presetDisplay } from '../preset-display.js'
 
 export interface PresetListProps {
   readonly state: PageState
@@ -29,18 +16,13 @@ export interface PresetListProps {
   readonly onView: (id: string) => void
   readonly onEditPersona: (id: string) => void
   readonly onHistory: (id: string) => void
-  readonly onExport: (id: string) => void
-  readonly onClone: () => void
+  readonly onExport: (id: string) => Promise<boolean>
   readonly onImport: () => void
   readonly onData: () => void
   readonly onRetry: () => void
 }
 
-/** Map a summary's live state to one badge tone and one label key. */
-export function stateOf(summary: PresetSummary): {
-  tone: 'ok' | 'warn' | 'err' | 'idle'
-  key: string
-} {
+export function stateOf(summary: PresetSummary): { tone: 'ok' | 'warn' | 'err' | 'idle'; key: string } {
   if (summary.registration === 'failed') return { tone: 'err', key: 'state.failed' }
   if (summary.health === 'broken') return { tone: 'err', key: 'state.broken' }
   if (summary.registration === 'registered') return { tone: 'ok', key: 'state.registered' }
@@ -48,222 +30,84 @@ export function stateOf(summary: PresetSummary): {
   return { tone: 'idle', key: 'state.notRegistered' }
 }
 
-const OWNERSHIP_KEY: Record<PresetSummary['ownership'], string> = {
-  managed: 'ownership.managed',
-  builtin: 'ownership.builtin',
-  'third-party': 'ownership.thirdParty',
-}
-
 export function PresetList(props: PresetListProps): React.ReactElement {
   const { state, t } = props
   const presets = state.snapshot?.presets ?? []
-  const managedCount = presets.filter((preset) => preset.ownership === 'managed').length
-
-  // The mount owns the "not ready" story; the list only reports what it knows.
-  if (state.mount.status === 'mounting') {
-    return React.createElement(
-      Panel,
-      null,
-      React.createElement(Loading, { label: t('common.loading') }),
-    )
+  if (state.mount.status === 'mounting' || (state.status === 'loading' && !state.snapshot)) {
+    return React.createElement(Panel, null, React.createElement(Loading, { label: t('common.loading') }))
   }
-  if (state.mount.status === 'failed') {
-    return React.createElement(
-      Panel,
-      null,
-      React.createElement(EmptyState, {
-        title: t('list.loadFailedTitle'),
-        body: t('list.loadFailedBody'),
-        actions: React.createElement(Button, { onClick: props.onRetry }, t('common.retry')),
-      }),
-    )
+  if (state.mount.status === 'failed' || (state.status === 'failed' && !state.snapshot)) {
+    return React.createElement(Panel, null, React.createElement(EmptyState, {
+      title: t('list.loadFailedTitle'), body: t('list.loadFailedBody'),
+      actions: React.createElement(Button, { onClick: props.onRetry }, t('common.retry')),
+    }))
   }
-  if (state.status === 'loading' && state.snapshot === undefined) {
-    return React.createElement(
-      Panel,
-      null,
-      React.createElement(Loading, { label: t('common.loading') }),
-    )
-  }
-  if (state.status === 'failed' && state.snapshot === undefined) {
-    return React.createElement(
-      Panel,
-      null,
-      React.createElement(EmptyState, {
-        title: t('list.loadFailedTitle'),
-        body: t('list.loadFailedBody'),
-        actions: React.createElement(Button, { onClick: props.onRetry }, t('common.retry')),
-      }),
-    )
-  }
-
-  return React.createElement(
-    React.Fragment,
-    null,
-
-    // ---- toolbar
-    React.createElement(
-      'div',
-      { className: 'dshpm-toolbar' },
-      React.createElement(
-        Button,
-        {
-          variant: 'primary',
-          disabled: !props.ready || props.busy,
-          onClick: props.onImport,
-        },
-        React.createElement(IconImport, { size: 13 }),
-        t('action.import'),
-      ),
-      React.createElement(
-        Button,
-        { disabled: !props.ready || props.busy, onClick: props.onClone },
-        React.createElement(IconCopy, { size: 13 }),
-        t('action.clone'),
-      ),
+  const groups = [
+    { key: 'builtin', label: 'list.builtinGroup', rows: presets.filter((row) => row.ownership === 'builtin') },
+    { key: 'managed', label: 'list.customGroup', rows: presets.filter((row) => row.ownership === 'managed') },
+    { key: 'third-party', label: 'list.thirdPartyGroup', rows: presets.filter((row) => row.ownership === 'third-party') },
+  ]
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', { className: 'dshpm-toolbar' },
+      React.createElement(Button, { variant: 'primary', disabled: !props.ready || props.busy, onClick: props.onImport },
+        React.createElement(IconImport, { size: 14 }), t('action.import')),
       React.createElement('span', { className: 'dshpm-spacer' }),
-      React.createElement(
-        'span',
-        { className: 'dshpm-count' },
-        t('list.summary', { total: presets.length, managed: managedCount }),
-      ),
-      React.createElement(
-        Button,
-        { variant: 'quiet', small: true, onClick: props.onData },
-        t('action.purge'),
-      ),
+      React.createElement('span', { className: 'dshpm-count' }, t('list.summary', {
+        total: presets.length, managed: groups[1]!.rows.length,
+      })),
+      React.createElement(Button, { variant: 'quiet', disabled: !props.ready || props.busy, onClick: props.onData }, t('action.purge')),
     ),
-
-    // ---- list
-    presets.length === 0
-      ? React.createElement(
-          Panel,
-          null,
-          React.createElement(EmptyState, {
-            title: t('list.emptyTitle'),
-            body: t('list.emptyBody'),
-            actions: React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                Button,
-                { variant: 'primary', onClick: props.onClone },
-                t('list.emptyActionClone'),
-              ),
-              React.createElement(
-                Button,
-                { onClick: props.onImport },
-                t('list.emptyActionImport'),
-              ),
-            ),
-          }),
-        )
-      : React.createElement(
-          Panel,
-          null,
-          React.createElement(
-            'div',
-            { className: 'dshpm-list' },
-            presets.map((summary) =>
-              React.createElement(Row, { key: summary.id, summary, ...props }),
-            ),
-          ),
-        ),
+    ...groups.map((group) => group.rows.length === 0 ? null : React.createElement('section', {
+      key: group.key, className: 'dshpm-preset-group', 'aria-label': t(group.label),
+    },
+      React.createElement('h3', { className: 'dshpm-group-title' }, t(group.label)),
+      React.createElement('div', { className: 'dshpm-preset-grid' }, group.rows.map((summary) =>
+        React.createElement(PresetCard, { ...props, key: summary.id, summary }))),
+    )),
+    groups[1]!.rows.length === 0 ? React.createElement('section', { className: 'dshpm-preset-group' },
+      React.createElement('h3', { className: 'dshpm-group-title' }, t('list.customGroup')),
+      React.createElement('p', { className: 'dshpm-custom-hint' }, t('list.customHint')),
+    ) : null,
+    presets.length === 0 ? React.createElement(Panel, null, React.createElement(EmptyState, {
+      title: t('list.emptyTitle'), body: t('list.emptyBody'),
+      actions: React.createElement(Button, { variant: 'primary', disabled: props.busy, onClick: props.onImport }, t('list.emptyActionImport')),
+    })) : null,
   )
 }
 
-function Row(props: PresetListProps & { readonly summary: PresetSummary }): React.ReactElement {
+export function PresetCard(props: PresetListProps & { readonly summary: PresetSummary }): React.ReactElement {
   const { summary, t } = props
-  const managed = summary.ownership === 'managed'
+  const display = presetDisplay(summary, t)
   const live = stateOf(summary)
-  const name = summary.name === undefined || summary.name === '' ? summary.id : summary.name
-
-  return React.createElement(
-    'div',
-    { className: 'dshpm-row' },
-
-    React.createElement(
-      'div',
-      { className: 'dshpm-row-main' },
-      React.createElement(
-        'div',
-        { className: 'dshpm-row-title' },
-        React.createElement('span', { className: 'dshpm-row-name' }, name),
-        React.createElement('span', { className: 'dshpm-row-id' }, summary.id),
+  const disabled = props.busy || !props.ready
+  const managed = summary.ownership === 'managed'
+  return React.createElement('article', {
+    className: 'dshpm-preset-card', 'data-default': summary.isDefault || undefined,
+    'data-preset-id': summary.id,
+  },
+    React.createElement('div', { className: 'dshpm-preset-content' },
+      React.createElement('div', { className: 'dshpm-preset-title-row' },
+        React.createElement('h4', { className: 'dshpm-preset-name' }, display.name),
+        summary.isDefault ? React.createElement('span', { className: 'dshpm-default-badge' }, t('state.default')) : null,
+        React.createElement('code', { className: 'dshpm-preset-id' }, summary.id),
       ),
-      React.createElement(
-        'div',
-        { className: 'dshpm-row-meta' },
-        React.createElement(Chip, null, t(OWNERSHIP_KEY[summary.ownership])),
-        React.createElement(
-          Badge,
-          {
-            tone: live.tone,
-            ...(summary.broken === undefined ? {} : { title: summary.broken }),
-          },
-          t(live.key),
-        ),
-        summary.isDefault
-          ? React.createElement(Badge, { tone: 'warn' }, t('state.default'))
-          : null,
-        React.createElement(
-          'span',
-          { className: 'dshpm-count' },
-          t('detail.rowCount', { count: summary.pluginCount }),
-        ),
-      ),
-      summary.description === undefined
-        ? null
-        : React.createElement('span', { className: 'dshpm-row-desc' }, summary.description),
+      React.createElement('p', { className: 'dshpm-preset-description' }, display.description),
+      live.tone === 'ok' ? null : React.createElement(Badge, { tone: live.tone, title: summary.broken }, t(live.key)),
     ),
-
-    React.createElement(
-      'div',
-      { className: 'dshpm-row-actions' },
-      React.createElement(
-        Button,
-        { small: true, onClick: () => props.onView(summary.id), title: t('action.view') },
-        t('action.view'),
-      ),
-      managed
-        ? React.createElement(
-            Button,
-            {
-              small: true,
-              onClick: () => props.onEditPersona(summary.id),
-              title: t('action.editPersona'),
-            },
-            React.createElement(IconEdit, { size: 12 }),
-            t('action.edit'),
-          )
-        : React.createElement(
-            Button,
-            { small: true, onClick: props.onClone, title: t('action.clone') },
-            React.createElement(IconCopy, { size: 12 }),
-            t('action.clone'),
-          ),
-      React.createElement(
-        Button,
-        {
-          small: true,
-          variant: 'quiet',
-          onClick: () => props.onExport(summary.id),
-          title: t('action.export'),
-        },
-        React.createElement(IconExport, { size: 12 }),
-      ),
-      managed
-        ? React.createElement(
-            Button,
-            {
-              small: true,
-              variant: 'quiet',
-              onClick: () => props.onHistory(summary.id),
-              title: t('action.history'),
-            },
-            React.createElement(IconHistory, { size: 12 }),
-          )
-        : null,
+    React.createElement('div', { className: 'dshpm-preset-actions' },
+      React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onView(summary.id) }, t('action.viewConfig')),
+      managed ? React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onEditPersona(summary.id) },
+        React.createElement(IconEdit, { size: 14 }), t('action.edit')) : null,
+      React.createElement('span', { className: 'dshpm-spacer' }),
+      managed ? React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onHistory(summary.id), title: `${t('action.history')} · ${display.name}` },
+        React.createElement(IconHistory, { size: 14 })) : null,
+      React.createElement(ActionButton, {
+        disabled, label: t('action.copy'), pendingLabel: t('feedback.copying'), successLabel: t('common.copied'), retryLabel: t('common.retry'),
+        hint: t('feedback.copyHint'), icon: React.createElement(IconCopy, { size: 14 }),
+        feedback: props.state.notice?.localAction?.id === summary.id && props.state.notice.localAction.kind === 'copy'
+          ? [props.state.notice.message, ...(props.state.notice.details ?? [])].join('\n') : undefined,
+        onAction: () => props.onExport(summary.id),
+      }),
     ),
   )
 }

@@ -26,7 +26,7 @@ import type {
   ValidationReport,
 } from '../../shared/types.js'
 import { ManagerError, ManagerErrorCode } from '../../shared/errors.js'
-import { countPlugins, parsePluginRows } from '../../domain/preset-model.js'
+import { countPlugins, parsePresetDocument, dumpPresetDocument } from '../../domain/preset-model.js'
 import { revisionOf } from '../../domain/preset-revision.js'
 import { diffPresets } from '../../domain/preset-diff.js'
 import { validatePreset } from '../../domain/preset-validator.js'
@@ -144,7 +144,7 @@ export class PresetManagerService {
         } satisfies PresetSummary),
       definition,
       revision,
-      yaml: exportPreset(definition).yaml,
+      yaml: dumpPresetDocument(definition),
       editable,
     }
   }
@@ -154,6 +154,7 @@ export class PresetManagerService {
   async validate(definition: PresetDefinition): Promise<ValidationReport> {
     this.assertUsable()
     const report = validatePreset(definition)
+    if (!report.ok) return report
     const modules = checkModules(definition, this.deps.resolveModule)
     return {
       ok: report.ok && modules.length === 0,
@@ -171,7 +172,7 @@ export class PresetManagerService {
 
   clone(request: {
     sourceId: string
-    newId: string
+    newId?: string
     name?: string
     description?: string
   }): Promise<MutationResult> {
@@ -235,7 +236,7 @@ export class PresetManagerService {
   async renderYaml(id: string): Promise<string> {
     this.assertUsable()
     const definition = await readSource(this.deps, id)
-    return exportPreset(definition).yaml
+    return dumpPresetDocument(definition)
   }
 
   /**
@@ -254,38 +255,19 @@ export class PresetManagerService {
     description?: string
   }): Promise<{ definition: PresetDefinition; validation: ValidationReport }> {
     this.assertUsable()
-    const existing = await this.deps.repository.get(request.id)
-    const parsed = await readSource(this.deps, request.id).catch(() => undefined)
-
-    let rows: PresetDefinition['plugins']
+    let definition: PresetDefinition
     try {
-      // The editor edits the plugin list; the identity and metadata stay under
-      // the form's control so a YAML typo can never rename a preset.
-      rows = parsePluginRows(request.yaml.trim() === '' ? '[]' : request.yaml)
+      definition = parsePresetDocument(request.yaml)
     } catch (error) {
-      throw new ManagerError(
-        ManagerErrorCode.invalidInput,
-        'YAML 语法错误，无法解析插件列表',
-        [
-          {
-            code: 'yaml.syntax',
-            message: error instanceof Error ? error.message : String(error),
-          },
-        ],
-      )
+      throw new ManagerError(ManagerErrorCode.invalidInput, '无法解析完整预设 YAML', [{
+        code: 'yaml.syntax', message: error instanceof Error ? error.message : String(error),
+      }])
     }
-
-    const definition: PresetDefinition = {
-      ...(parsed ?? {}),
-      id: request.id,
-      // Metadata the caller omitted falls back to what the stored preset had, so
-      // editing only the plugin list cannot silently drop a name or description.
-      name: request.name ?? parsed?.name ?? existing?.definition.name,
-      description: request.description ?? parsed?.description ?? existing?.definition.description,
-      order: parsed?.order ?? existing?.definition.order,
-      plugins: rows,
+    if (definition.id !== request.id) {
+      return { definition, validation: { ok: false, errors: [{
+        code: 'preset.id.immutable', path: 'id', message: '保存不能修改预设 ID；请使用派生创建新的预设。',
+      }], warnings: [] } }
     }
-
     return { definition, validation: await this.validate(definition) }
   }
 

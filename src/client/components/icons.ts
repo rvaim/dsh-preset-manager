@@ -46,6 +46,16 @@ export function IconPreset(props: IconProps): React.ReactElement {
   )
 }
 
+/** Fork: one source branching into an independent composition. */
+export function IconFork(props: IconProps): React.ReactElement {
+  return svg(React.createElement(React.Fragment, null,
+    React.createElement('circle', { cx: 4, cy: 3, r: 1.5 }),
+    React.createElement('circle', { cx: 12, cy: 3, r: 1.5 }),
+    React.createElement('circle', { cx: 8, cy: 13, r: 1.5 }),
+    React.createElement('path', { d: 'M4 4.5v1A3.5 3.5 0 0 0 7.5 9H8m4-4.5v1A3.5 3.5 0 0 1 8.5 9H8v2.5' }),
+  ), props)
+}
+
 /** Copy. */
 export function IconCopy(props: IconProps): React.ReactElement {
   return svg(

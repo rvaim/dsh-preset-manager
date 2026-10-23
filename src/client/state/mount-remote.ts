@@ -10,7 +10,15 @@
  * reason instead of "not ready", which is the difference between a bug report
  * and a dead end.
  */
+import type { Context } from '@deepseek-ai/cordis'
+import type { ManagerSnapshot } from '../../shared/types.js'
 import type { PresetManagerRemoteService } from '../api/remote-api.js'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    'remote.presetManager': PresetManagerRemoteService
+  }
+}
 
 /** What the page needs to know about the mount. */
 export interface MountState {
@@ -19,9 +27,11 @@ export interface MountState {
   readonly error?: string
   /** The namespace service once mounted. */
   readonly service?: PresetManagerRemoteService
+  readonly snapshot?: ManagerSnapshot
+  readonly retry?: () => void
 }
 
-export interface RemoteHost {
+export interface RemoteHost extends Pick<Context, 'inject'> {
   readonly remote: {
     $mount(contribution: unknown): Promise<() => Promise<void>>
   }
@@ -31,9 +41,9 @@ export interface RemoteHost {
 /**
  * Mount the descriptors and report exactly what happened.
  *
- * A mount that resolves but installs no namespace is treated as a failure: that
- * combination means the contribution was accepted and then not exposed, which is
- * a real defect and must not be reported as ready.
+ * The owner mounts descriptors before creating the namespace consumer. The
+ * consumer is a child fiber with its own declared dependency; declaring that
+ * dependency on the owner itself would prevent the mount from ever starting.
  *
  * @param host - the Client context providing `remote` and a logger.
  * @param contribution - the descriptor set this package owns.
@@ -62,19 +72,56 @@ export function mountRemoteNamespace(
     .$mount(contribution)
     .then(() => {
       if (isCancelled()) return
-      const mounted = (host.remote as unknown as {
-        presetManager?: PresetManagerRemoteService
-      }).presetManager
-      if (mounted === undefined) {
-        settle({
-          status: 'failed',
-          error:
-            '$mount 已成功返回，但 ctx.remote.presetManager 未被安装。' +
-            '这通常意味着 descriptor 未通过 gateway 校验。',
+      // `remote` and `remote.presetManager` are independent Cordis services.
+      // The owner mounts the namespace; only a child that declares the new
+      // dependency may read it. Cordis withdraws/recreates this consumer when
+      // the namespace changes, without making the owner wait for its own mount.
+      return host.inject(['remote.presetManager'], (ctx) => {
+        if (isCancelled()) return
+        ctx.effect(() => {
+          const service = ctx['remote.presetManager']
+          let active = true
+          let epoch = 0
+          let timer: ReturnType<typeof setTimeout> | undefined
+          let wake: (() => void) | undefined
+          const pause = (milliseconds: number): Promise<void> => new Promise((resolve) => {
+            wake = resolve
+            timer = setTimeout(() => { timer = undefined; wake = undefined; resolve() }, milliseconds)
+          })
+          const start = (): void => {
+            if (!active || isCancelled()) return
+            const request = ++epoch
+            settle({ status: 'mounting' })
+            void (async () => {
+              // Namespace admission is local. Only a valid Host snapshot proves
+              // that the owning Host fiber has finished (re)activation. The
+              // exact unavailable fault is expected during a bundle replacement;
+              // schema/method/carrier faults are never hidden by this handshake.
+              for (let attempt = 0; attempt < 8; attempt += 1) {
+                if (!active || isCancelled() || request !== epoch) return
+                const result = await service.snapshot()
+                if (!active || isCancelled() || request !== epoch) return
+                if (result.ok) {
+                  settle({ status: 'ready', service, snapshot: result.value })
+                  return
+                }
+                if (result.error.code !== 'gateway/service-unavailable' || attempt === 7) throw result.error
+                await pause(Math.min(75 * 2 ** attempt, 750))
+              }
+            })().catch((error: unknown) => {
+              if (active && !isCancelled() && request === epoch) settle({ status: 'failed', error: describeMountError(error), retry: start })
+            })
+          }
+          start()
+          return () => {
+            active = false
+            epoch += 1
+            clearTimeout(timer)
+            wake?.()
+            settle({ status: 'mounting' })
+          }
         })
-        return
-      }
-      settle({ status: 'ready', service: mounted })
+      })
     })
     .catch((error: unknown) => {
       settle({ status: 'failed', error: describeMountError(error) })

@@ -13,7 +13,7 @@ export const zh: Record<string, unknown> = {
   "nav": "预设管理",
   "page": {
     "title": "Agent 预设管理器",
-    "subtitle": "预设通过运行时接口注册，DSH 配置文件保持原样。"
+    "subtitle": "管理 Agent 预设、提示词与插件组合。派生创建副本，复制写入剪贴板。"
   },
   "common": {
     "loading": "正在读取预设…",
@@ -65,7 +65,12 @@ export const zh: Record<string, unknown> = {
     "columnPlugins": "插件数",
     "columnActions": "操作",
     "loadFailedTitle": "无法读取预设列表",
-    "loadFailedBody": "Host 接口没有响应。请确认插件已启用，然后重试。"
+    "loadFailedBody": "Host 接口没有响应。请确认插件已启用，然后重试。",
+    "builtinGroup": "内置",
+    "customGroup": "自定义",
+    "thirdPartyGroup": "第三方",
+    "customHint": "在「查看」中派生独立副本，或从文件导入。自定义预设可直接编辑。",
+    "noDescription": "暂无用途说明，可在编辑预设时补充。"
   },
   "detail": {
     "backToList": "返回列表",
@@ -90,21 +95,22 @@ export const zh: Record<string, unknown> = {
     "import": "导入",
     "confirmImport": "确认导入",
     "previewImport": "预览导入",
-    "purge": "清除数据"
+    "purge": "清除数据",
+    "viewConfig": "查看",
+    "fork": "派生",
+    "copy": "复制"
   },
   "editor": {
     "heading": "编辑预设",
-    "tabPersona": "Persona",
-    "tabYaml": "高级 YAML",
+    "tabPersona": "提示词",
+    "tabYaml": "完整 YAML",
     "sharedDraft": "两种编辑方式共用同一份草稿，切换不会丢失修改。",
     "name": "名称",
     "description": "描述",
-    "prefix": "Prefix（前置指令）",
-    "suffix": "Suffix（后置指令）",
-    "complete": "替换内置提示词",
-    "completeHint": "默认关闭：Persona 会追加在内置提示词之上，而不是替换它。",
-    "noPersonaRow": "该预设没有 persona 插件行。填写任一字段会新增一行。",
-    "yamlHeading": "插件组合",
+    "prefix": "前置提示词 · prefix",
+    "suffix": "后置提示词 · suffix",
+    "noPersonaRow": "尚未声明 Persona。填写前置或后置内容会添加提示词条目。",
+    "yamlHeading": "完整预设文档：元数据与插件组合",
     "yamlHint": "保留 DSH 的 YAML 方言、!!js 表达式与未知字段。",
     "yamlErrorTitle": "YAML 无法解析",
     "validateAndDiff": "校验并对比",
@@ -117,7 +123,27 @@ export const zh: Record<string, unknown> = {
     "diffUnchanged": "{count} 项未变更",
     "noChanges": "没有检测到变更。",
     "validateFailedTitle": "配置校验未通过，尚未保存",
-    "saveSucceeded": "已保存并注册「{name}」"
+    "saveSucceeded": "已保存并注册「{name}」",
+    "unsavedWarning": "有未保存的修改，是否放弃？",
+    "keepEditing": "继续编辑",
+    "discardChanges": "放弃修改并关闭",
+    "prompt": "提示词",
+    "promptPlaceholder": "在这里编辑该预设的提示词。",
+    "tabPlugins": "插件与工具",
+    "order": "排序",
+    "stableId": "稳定的预设 ID，普通保存不改名",
+    "personaEntry": "选择提示词条目",
+    "personaScope": "这里编辑 Persona 模板，其他提示段由插件组合提供。",
+    "otherPromptSections": "其他提示段与插件配置",
+    "dynamicTemplate": "此值为动态表达式，请在插件条目或完整 YAML 中编辑。",
+    "suffixInactive": "当前配置仅采用前置提示词作为系统提示词；后置内容可以保存，但不会参与渲染。",
+    "prefixTab": "前置提示词",
+    "suffixTab": "后置提示词",
+    "discardTitle": "放弃未保存的修改",
+    "saveTitle": "确认保存",
+    "saveBody": "保存「{name}」的修改？新会话将使用更新后的预设，已运行会话保持原版本。",
+    "backToEdit": "返回编辑",
+    "changeSummary": "元信息 {metadata} 项；插件新增 {added}、修改 {changed}、移除 {removed}。"
   },
   "clone": {
     "heading": "复制预设",
@@ -129,7 +155,8 @@ export const zh: Record<string, unknown> = {
     "name": "显示名称",
     "nameHint": "留空则使用「源名称 副本」。",
     "submit": "创建副本",
-    "succeeded": "已复制为「{name}」"
+    "succeeded": "已复制为「{name}」",
+    "copySuffix": "副本"
   },
   "history": {
     "heading": "历史版本",
@@ -151,7 +178,7 @@ export const zh: Record<string, unknown> = {
     "risksTitle": "分享前请确认",
     "risksHint": "以下内容可能包含密钥或本机路径。插件只提示，不会改写你的预设。",
     "noRisks": "未检测到明显的密钥或本机路径。",
-    "copyShare": "复制分享文本",
+    "copyShare": "导出到剪贴板",
     "download": "下载 YAML",
     "manualHeading": "分享文本",
     "manualHint": "复制失败时可在此手动选择。",
@@ -215,5 +242,49 @@ export const zh: Record<string, unknown> = {
     "genericTitle": "操作失败",
     "revisionConflict": "预设已被其他页面修改。请重新载入后再保存。",
     "notFound": "找不到该预设，可能已被删除。"
+  },
+  "builtin": {
+    "standard": {
+      "name": "标准模式",
+      "description": "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。"
+    },
+    "ptc": {
+      "name": "PTC 模式",
+      "description": "包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。"
+    },
+    "minimal": {
+      "name": "极简模式",
+      "description": "Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。"
+    },
+    "cordis": {
+      "name": "创造模式",
+      "description": "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。"
+    }
+  },
+  "feedback": {
+    "forking": "派生中",
+    "forked": "已派生",
+    "forkHint": "创建此预设的独立副本（Fork）",
+    "copying": "复制中",
+    "copyHint": "将完整分享配置复制到剪贴板"
+  },
+  "composition": {
+    "package": "插件包名",
+    "addPlugin": "添加插件",
+    "addGroup": "添加分组",
+    "group": "分组",
+    "disabled": "已禁用",
+    "conditional": "条件启用",
+    "empty": "添加插件或分组，构建此预设的能力。",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "enable": "启用",
+    "disable": "停用",
+    "remove": "移除条目",
+    "entryHint": "编辑当前条目的完整 YAML：config、disabled、inject、intercept、isolate 与其他字段均原样保留。分组的 config 是子条目列表。",
+    "entryYaml": "当前插件条目 YAML",
+    "oneEntry": "当前区域只能包含一个插件或分组条目。",
+    "root": "根级",
+    "addTarget": "添加到：{target}"
   }
 }

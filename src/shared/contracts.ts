@@ -39,7 +39,7 @@ export interface PresetManagerRemote {
 
   clone(request: {
     sourceId: string
-    newId: string
+    newId?: string
     name?: string
     description?: string
   }): Promise<MutationResult>

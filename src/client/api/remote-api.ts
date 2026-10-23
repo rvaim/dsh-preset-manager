@@ -24,7 +24,7 @@ import type { PresetManagerRemote } from '../../shared/contracts.js'
 /** The `unknown` shape a Remote method resolves to at the transport layer. */
 type RemoteResult<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: ManagerFailure }
+  | { readonly ok: false; readonly error: Omit<ManagerFailure, 'details'> & { readonly details?: unknown } }
 
 /**
  * The namespace service the gateway installs.
@@ -40,7 +40,7 @@ export interface PresetManagerRemoteService {
   history(id: string): Promise<RemoteResult<HistoryEntry[]>>
   clone(
     sourceId: string,
-    newId: string,
+    newId?: string,
     name?: string,
     description?: string,
   ): Promise<RemoteResult<MutationResult>>
@@ -48,7 +48,7 @@ export interface PresetManagerRemoteService {
     definition: PresetDefinition,
     expectedRevision?: string,
   ): Promise<RemoteResult<MutationResult>>
-  remove(
+  deletePreset(
     id: string,
     acknowledgedDefaultRisk?: boolean,
   ): Promise<RemoteResult<MutationResult>>
@@ -87,11 +87,18 @@ export class RemoteInvocationError extends Error {
   readonly code: string
   readonly details: readonly { code: string; message: string; path?: string; detail?: string }[]
 
-  constructor(failure: ManagerFailure) {
+  constructor(failure: Omit<ManagerFailure, 'details'> & { readonly details?: unknown }) {
     super(failure.message)
     this.name = 'RemoteInvocationError'
     this.code = failure.code
-    this.details = failure.details ?? []
+    // Gateway failures carry a details object (endpoint, field, etc.), while
+    // domain diagnostics may be an issue list. Never pass an object to .map().
+    this.details = Array.isArray(failure.details)
+      ? failure.details.filter((issue): issue is typeof this.details[number] =>
+          typeof issue === 'object' && issue !== null &&
+          typeof issue.code === 'string' && typeof issue.message === 'string',
+        )
+      : []
   }
 }
 
@@ -114,7 +121,7 @@ export interface PresetManagerApi {
   history(id: string): Promise<HistoryEntry[]>
   clone(request: {
     sourceId: string
-    newId: string
+    newId?: string
     name?: string
     description?: string
   }): Promise<MutationResult>
@@ -162,7 +169,7 @@ export function createApi(remote: PresetManagerRemoteService): PresetManagerApi 
         .then(unwrap),
     save: (request) => remote.save(request.definition, request.expectedRevision).then(unwrap),
     remove: (request) =>
-      remote.remove(request.id, request.acknowledgedDefaultRisk).then(unwrap),
+      remote.deletePreset(request.id, request.acknowledgedDefaultRisk).then(unwrap),
     restore: (request) =>
       remote.restore(request.id, request.revision, request.expectedRevision).then(unwrap),
 

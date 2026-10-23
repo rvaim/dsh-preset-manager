@@ -20,15 +20,20 @@ import type {
   ManagerSnapshot,
   PresetDefinition,
   PresetDetail,
+  PresetSummary,
   PresetDiff,
   ValidationReport,
 } from '../../shared/types.js'
 import type { PresetManagerApi } from '../api/remote-api.js'
 import { createApi, RemoteInvocationError } from '../api/remote-api.js'
 import type { MountState } from './mount-remote.js'
+import { dumpPresetDocument } from '../../domain/preset-model.js'
 
 /** A user-facing notice: the outcome of an operation, or a load failure. */
+export type EditorMode = 'persona' | 'plugins' | 'yaml'
+
 export interface Notice {
+  readonly localAction?: { readonly kind: 'fork' | 'copy'; readonly id: string }
   readonly level: 'info' | 'success' | 'warning' | 'error'
   readonly title?: string
   readonly message: string
@@ -40,7 +45,7 @@ export interface Notice {
 export type PageView =
   | { readonly kind: 'list' }
   | { readonly kind: 'detail'; readonly id: string }
-  | { readonly kind: 'editor'; readonly id: string; readonly mode: 'persona' | 'yaml' }
+  | { readonly kind: 'editor'; readonly id: string; readonly mode: EditorMode }
   | { readonly kind: 'history'; readonly id: string }
 
 export interface PageState {
@@ -61,6 +66,8 @@ export interface PageState {
   readonly draftRevision: string | undefined
   readonly yamlText: string
   readonly yamlError: string | undefined
+  readonly parsingYaml: boolean
+  readonly compositionError: string | undefined
   readonly validation: ValidationReport | undefined
   readonly diff: PresetDiff | undefined
   readonly preview: ImportPreview | undefined
@@ -79,6 +86,8 @@ const INITIAL: PageState = {
   draftRevision: undefined,
   yamlText: '',
   yamlError: undefined,
+  parsingYaml: false,
+  compositionError: undefined,
   validation: undefined,
   diff: undefined,
   preview: undefined,
@@ -99,6 +108,30 @@ export class PresetManagerStore {
   private apiProvider: (() => PresetManagerApi) | undefined
   private state: PageState = INITIAL
   private readonly listeners = new Set<Listener>()
+  private pageCount = 0
+  private viewRequest = 0
+  private yamlRequest = 0
+  private initialYaml = ''
+
+  get hasUnsavedChanges(): boolean {
+    return this.state.view.kind === 'editor' && this.state.draft !== undefined &&
+      (JSON.stringify(this.state.draft) !== JSON.stringify(this.state.detail?.definition) ||
+        this.state.yamlText !== this.initialYaml || this.state.yamlError !== undefined || this.state.compositionError !== undefined)
+  }
+
+  get mountedPages(): number {
+    return this.pageCount
+  }
+
+  retainPage(): () => void {
+    this.pageCount += 1
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      this.pageCount -= 1
+    }
+  }
 
   constructor(apiProvider?: () => PresetManagerApi) {
     this.apiProvider = apiProvider
@@ -133,11 +166,21 @@ export class PresetManagerStore {
    * reason so the page can show it verbatim rather than a generic failure.
    */
   attachMount(state: MountState): void {
-    this.set({ mount: state })
-    if (state.status !== 'ready' || state.service === undefined) return
-    const service = state.service
-    this.apiProvider = () => createApi(service)
-    void this.load()
+    if (state.status !== 'ready' || state.service === undefined) {
+      this.apiProvider = undefined
+      this.viewRequest += 1
+      this.yamlRequest += 1
+      this.set({ mount: state, status: 'idle', snapshot: undefined, notice: undefined, busy: false, parsingYaml: false, view: { kind: 'list' } })
+      return
+    }
+    const api = createApi(state.service)
+    this.apiProvider = () => api
+    if (state.snapshot) {
+      this.set({ mount: state, status: 'ready', snapshot: state.snapshot, notice: undefined })
+    } else {
+      this.set({ mount: state })
+      void this.load()
+    }
   }
 
   private get api(): PresetManagerApi {
@@ -155,6 +198,7 @@ export class PresetManagerStore {
   // --------------------------------------------------------------- loading
 
   async load(): Promise<void> {
+    if (this.state.mount.status === 'failed' && this.state.mount.retry) { this.state.mount.retry(); return }
     if (this.apiProvider === undefined) {
       this.set({
         status: 'failed',
@@ -170,128 +214,142 @@ export class PresetManagerStore {
       return
     }
     this.set({ status: 'loading' })
+    const api = this.api
     try {
-      const snapshot = await this.api.snapshot()
+      const snapshot = await api.snapshot()
+      if (this.apiProvider?.() !== api) return
       this.set({ status: 'ready', snapshot, notice: undefined })
     } catch (error) {
+      if (this.apiProvider?.() !== api) return
       this.set({ status: 'failed', notice: describeFailure(error) })
     }
   }
 
   /** Re-read the list without flashing the loading state. */
-  async refresh(): Promise<void> {
-    if (this.apiProvider === undefined) return
+  async refresh(): Promise<boolean> {
+    if (this.apiProvider === undefined) return false
+    const api = this.api
     try {
-      const snapshot = await this.api.snapshot()
+      const snapshot = await api.snapshot()
+      if (this.apiProvider?.() !== api) return false
       this.set({ status: 'ready', snapshot })
+      return true
     } catch (error) {
+      if (this.apiProvider?.() !== api) return false
       this.set({ notice: describeFailure(error) })
+      return false
     }
   }
 
   // ------------------------------------------------------------ navigation
 
   async openDetail(id: string): Promise<void> {
+    const request = ++this.viewRequest
+    const api = this.api
     this.set({ view: { kind: 'detail', id }, detail: undefined, notice: undefined })
     try {
-      const detail = await this.api.detail(id)
+      const detail = await api.detail(id)
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
       this.set({ detail })
     } catch (error) {
-      this.set({ notice: describeFailure(error) })
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
+      this.set({ view: { kind: 'list' }, notice: describeFailure(error) })
     }
   }
 
-  /** Open the editor with a copy of the stored definition as the draft. */
-  async openEditor(id: string, mode: 'persona' | 'yaml'): Promise<void> {
+  /** Open the editing dialog directly from a card, without a detail-page hop. */
+  async openEditor(id: string, mode: EditorMode): Promise<void> {
+    const request = ++this.viewRequest
+    const api = this.api
+    this.yamlRequest += 1
     this.set({
-      view: { kind: 'editor', id, mode },
-      detail: undefined,
-      draft: undefined,
-      draftRevision: undefined,
-      yamlText: '',
-      yamlError: undefined,
-      validation: undefined,
-      diff: undefined,
-      notice: undefined,
+      view: { kind: 'editor', id, mode }, detail: undefined, draft: undefined,
+      draftRevision: undefined, yamlText: '', yamlError: undefined, parsingYaml: false, compositionError: undefined,
+      validation: undefined, diff: undefined, notice: undefined,
     })
     try {
-      const detail = await this.api.detail(id)
-      const yaml = await this.api.renderYaml(id)
-      this.set({
-        detail,
-        draft: detail.definition,
-        draftRevision: detail.revision,
-        yamlText: yaml,
-      })
+      const [detail, yaml] = await Promise.all([api.detail(id), api.renderYaml(id)])
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
+      if (!detail.editable) throw new Error('内置与第三方预设只读，请使用「复制并编辑」。')
+      this.initialYaml = yaml
+      this.set({ detail, draft: detail.definition, draftRevision: detail.revision, yamlText: yaml })
     } catch (error) {
-      this.set({ notice: describeFailure(error) })
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
+      this.set({ view: { kind: 'list' }, notice: describeFailure(error) })
     }
   }
 
   /** Switch the editor mode, keeping the single shared draft untouched. */
-  setEditorMode(mode: 'persona' | 'yaml'): void {
+  setEditorMode(mode: EditorMode): void {
     const view = this.state.view
-    if (view.kind !== 'editor') return
-    this.set({ view: { kind: 'editor', id: view.id, mode } })
+    if (view.kind !== 'editor' || this.state.busy || this.state.parsingYaml || this.state.yamlError !== undefined || this.state.compositionError !== undefined || this.state.validation?.ok === false) return
+    this.set({ view: { kind: 'editor', id: view.id, mode },
+      ...(mode === 'yaml' && this.state.draft ? { yamlText: dumpPresetDocument(this.state.draft) } : {}) })
   }
 
   async openHistory(id: string): Promise<void> {
+    const request = ++this.viewRequest
+    const api = this.api
     this.set({ view: { kind: 'history', id }, history: [], notice: undefined })
     try {
-      const history = await this.api.history(id)
+      const history = await api.history(id)
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
       this.set({ history })
     } catch (error) {
-      this.set({ notice: describeFailure(error) })
+      if (request !== this.viewRequest || this.apiProvider?.() !== api) return
+      this.set({ view: { kind: 'list' }, notice: describeFailure(error) })
     }
   }
 
   backToList(): void {
+    this.viewRequest += 1
+    this.yamlRequest += 1
+    this.initialYaml = ''
     this.set({
-      view: { kind: 'list' },
-      detail: undefined,
-      draft: undefined,
-      draftRevision: undefined,
-      yamlText: '',
-      yamlError: undefined,
-      validation: undefined,
-      diff: undefined,
-      preview: undefined,
-      notice: undefined,
+      view: { kind: 'list' }, detail: undefined, draft: undefined,
+      draftRevision: undefined, yamlText: '', yamlError: undefined, parsingYaml: false, compositionError: undefined,
+      validation: undefined, diff: undefined, preview: undefined, notice: undefined,
     })
-    void this.refresh()
   }
 
   // ------------------------------------------------------------- draft edit
 
-  /** Replace the shared draft, as the Persona form does on every keystroke. */
+  setCompositionError(error: string | undefined): void {
+    this.set({ compositionError: error })
+  }
+
+  /** Replace the shared draft, as the structured editors do on every keystroke. */
   setDraft(definition: PresetDefinition): void {
-    this.set({ draft: definition, validation: undefined, diff: undefined })
+    if (this.state.busy) return
+    this.set({ draft: definition,
+      validation: this.state.view.kind === 'editor' && this.state.view.mode === 'yaml' && this.state.validation?.ok === false
+        ? this.state.validation : undefined,
+      diff: undefined })
   }
 
   /** Replace the shared draft from the YAML editor, reporting parse problems. */
   async setYaml(text: string): Promise<void> {
-    this.set({ yamlText: text })
+    if (this.state.busy) return
+    const request = ++this.yamlRequest
+    const view = this.viewRequest
+    this.set({ yamlText: text, parsingYaml: true })
     const draft = this.state.draft
     if (draft === undefined) return
+    const api = this.api
     try {
-      const parsed = await this.api.parseYaml(draft.id, text)
-      this.set({
-        draft: parsed.definition,
-        yamlError: undefined,
-        validation: parsed.validation,
-        diff: undefined,
-      })
+      const parsed = await api.parseYaml(draft.id, text)
+      if (request !== this.yamlRequest || view !== this.viewRequest || this.apiProvider?.() !== api) return
+      this.set({ ...(parsed.validation.ok ? { draft: parsed.definition } : {}), yamlError: undefined, parsingYaml: false, validation: parsed.validation, diff: undefined })
     } catch (error) {
-      // A YAML syntax error must not discard the last good draft: the user is
-      // mid-edit and needs the text they typed to stay in the box.
-      this.set({ yamlError: messageOf(error), validation: undefined })
+      if (request !== this.yamlRequest || view !== this.viewRequest || this.apiProvider?.() !== api) return
+      this.set({ yamlError: messageOf(error), parsingYaml: false, validation: undefined })
     }
   }
 
   /** Validate and diff the current draft before saving. */
   async prepareSave(): Promise<boolean> {
     const { draft, detail } = this.state
-    if (draft === undefined) return false
+    if (draft === undefined || this.state.busy || this.state.parsingYaml) return false
     this.set({ busy: true, notice: undefined })
     try {
       const [validation, diff] = await Promise.all([
@@ -317,34 +375,102 @@ export class PresetManagerStore {
     }
   }
 
-  /** Commit the draft. */
+  /** Commit the editing dialog's draft, keeping it open on a refused save. */
   async save(): Promise<boolean> {
-    const { draft, draftRevision } = this.state
-    if (draft === undefined) return false
+    const { draft, draftRevision, view } = this.state
+    if (!draft || this.state.busy || this.state.parsingYaml || this.state.yamlError || this.state.compositionError !== undefined || this.state.validation?.ok === false) return false
+    const api = this.api
+    const request = this.viewRequest
     this.set({ busy: true, notice: undefined })
     try {
-      await this.api.save({
-        definition: draft,
-        ...(draftRevision === undefined ? {} : { expectedRevision: draftRevision }),
-      })
-      await this.refresh()
-      this.set({ busy: false })
-      this.notice({
-        level: 'success',
-        message: `已保存并注册「${draft.name ?? draft.id}」`,
-      })
-      // Re-read the editor state so the revision the next save compares against
-      // is the one the Host now holds.
-      const view = this.state.view
+      const result = await api.save({ definition: draft,
+        ...(draftRevision === undefined ? {} : { expectedRevision: draftRevision }) })
+      if (this.apiProvider?.() !== api || request !== this.viewRequest) return false
+      if (!result.ok || !result.applied) {
+        this.set({ busy: false, notice: { level: 'error', message: result.errors.map(formatIssue).join('\n') || '保存未完成，请重试。' } })
+        return false
+      }
+      const refreshed = await this.refresh()
+      const refreshFailure = this.state.notice
+      if (this.apiProvider?.() !== api || request !== this.viewRequest) return false
       if (view.kind === 'editor') await this.openEditor(view.id, view.mode)
-      return true
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false })
+      if (!refreshed) {
+        this.notice({ level: 'warning', message: `保存已完成，但列表刷新失败。关闭弹窗后点击刷新重试。${refreshFailure?.message ?? ''}` })
+        return false
+      }
+      return this.state.draft?.id === draft.id
     } catch (error) {
+      if (this.apiProvider?.() !== api || request !== this.viewRequest) return false
       this.set({ busy: false, notice: describeFailure(error) })
       return false
     }
   }
 
   // -------------------------------------------------------------- commands
+
+  /** Copy the selected card without a redundant source/ID form. */
+  async duplicate(source: PresetSummary, copySuffix: string): Promise<boolean> {
+    if (this.state.busy || this.state.mount.status !== 'ready') return false
+    const api = this.api
+    const name = `${source.name || source.id} ${copySuffix}`
+
+    this.set({ busy: true, notice: undefined })
+    try {
+      const result = await api.clone({
+        sourceId: source.id, name,
+        ...(source.description === undefined ? {} : { description: source.description }),
+      })
+      if (this.apiProvider?.() !== api) return false
+      if (!result.ok || !result.applied) {
+        this.set({ busy: false, notice: { localAction: { kind: 'fork', id: source.id },
+          level: 'error', title: '派生失败',
+          message: result.errors.map(formatIssue).join('\n') || '副本未完成注册，请重试。',
+        } })
+        return false
+      }
+      const created = result.preset
+      if (created === undefined) throw new Error('副本已提交，但 Host 未返回新预设信息，请刷新列表。')
+      const refreshed = await this.refresh()
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false })
+      if (!refreshed) {
+        this.notice({ localAction: { kind: 'fork', id: source.id }, level: 'warning', message: `已派生为「${created.name ?? created.id}」，列表刷新失败，请点击刷新。` })
+        return true
+      }
+      this.notice({ localAction: { kind: 'fork', id: source.id }, level: 'success', message: `已派生为「${created.name ?? name}」` })
+      return true
+    } catch (error) {
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, notice: { ...describeFailure(error), localAction: { kind: 'fork', id: source.id } } })
+      return false
+    }
+  }
+
+  /** Export directly to the caller's clipboard without opening another view. */
+  async copyConfiguration(id: string, writeText: (text: string) => Promise<void>): Promise<boolean> {
+    if (this.state.busy || this.state.mount.status !== 'ready') return false
+    const api = this.api
+    this.set({ busy: true, notice: undefined })
+    try {
+      const exported = await api.exportPreset(id)
+      if (this.apiProvider?.() !== api) return false
+      await writeText(exported.yaml)
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, notice: { localAction: { kind: 'copy', id },
+        level: exported.risks.length === 0 ? 'success' : 'warning',
+        message: '配置已复制到剪贴板',
+        ...(exported.risks.length === 0 ? {} : { details: exported.risks.map(formatIssue) }),
+      } })
+      return true
+    } catch (error) {
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, notice: { localAction: { kind: 'copy', id }, level: 'error', title: '复制配置失败',
+        message: `无法复制配置，请检查剪贴板权限后重试。${messageOf(error)}` } })
+      return false
+    }
+  }
 
   async clone(request: {
     sourceId: string

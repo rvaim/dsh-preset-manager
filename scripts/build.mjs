@@ -11,8 +11,8 @@
  */
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -43,7 +43,9 @@ step('bundling Client with esbuild')
 const clientEntry = join(root, 'src/client/index.ts')
 mkdirSync(join(dist), { recursive: true })
 
-await build({
+const clientBuild = await build({
+  absWorkingDir: root,
+  metafile: true,
   entryPoints: [clientEntry],
   outfile: join(dist, 'client.bundle.js'),
   bundle: true,
@@ -77,6 +79,31 @@ const envelope = `window.__ModuleLoader__.load({
 });
 `
 writeFileSync(join(dist, 'client.js'), envelope, 'utf8')
+
+// Bundled packages do not remain separate npm dependencies in the browser.
+// Preserve their actual license texts alongside the self-contained artifact.
+const notices = new Map()
+for (const input of Object.keys(clientBuild.metafile.inputs)) {
+  if (!input.includes('node_modules/')) continue
+  let directory = dirname(resolve(root, input))
+  while (directory !== root && directory !== dirname(directory)) {
+    const metadata = join(directory, 'package.json')
+    if (existsSync(metadata)) {
+      const dependency = JSON.parse(readFileSync(metadata, 'utf8'))
+      const key = `${dependency.name}@${dependency.version}`
+      if (!notices.has(key)) {
+        const license = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'license', 'license.md', 'COPYING']
+          .map((name) => join(directory, name)).find((path) => existsSync(path))
+        if (!license) throw new Error(`Bundled dependency has no license text: ${key}`)
+        notices.set(key, readFileSync(license, 'utf8').trim())
+      }
+      break
+    }
+    directory = dirname(directory)
+  }
+}
+writeFileSync(join(dist, 'THIRD_PARTY_NOTICES.txt'), [...notices.entries()].sort(([a], [b]) => a.localeCompare(b))
+  .map(([name, license]) => `${name}\n${'='.repeat(name.length)}\n\n${license}\n`).join('\n'), 'utf8')
 rmSync(join(dist, 'client.bundle.js'), { force: true })
 
 step(`done -> ${dist}`)

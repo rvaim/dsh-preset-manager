@@ -99,7 +99,7 @@ export function Button(props: {
       type: props.type ?? 'button',
       className: classes,
       ...(props.disabled === true ? { disabled: true } : {}),
-      ...(props.title === undefined ? {} : { title: props.title }),
+      ...(props.title === undefined ? {} : { title: props.title, 'aria-label': props.title }),
       ...(props.onClick === undefined ? {} : { onClick: props.onClick }),
     },
     props.children,
@@ -284,11 +284,12 @@ export function Checkbox(props: {
 export function Tabs(props: {
   value: string
   options: readonly { value: string; label: string }[]
+  className?: string
   onChange: (value: string) => void
 }): React.ReactElement {
   return React.createElement(
     'div',
-    { className: 'dshpm-tabs', role: 'tablist' },
+    { className: `dshpm-tabs${props.className ? ` ${props.className}` : ''}`, role: 'tablist' },
     props.options.map((option) =>
       React.createElement(
         'button',

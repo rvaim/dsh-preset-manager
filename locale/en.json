@@ -6,7 +6,7 @@
   "nav": "Presets",
   "page": {
     "title": "Agent Preset Manager",
-    "subtitle": "Presets register through the runtime API; DSH configuration files stay untouched."
+    "subtitle": "Manage presets, prompts and plugin compositions. Fork creates a copy; Copy writes to the clipboard."
   },
   "common": {
     "loading": "Reading presets…",
@@ -58,7 +58,12 @@
     "columnPlugins": "Plugins",
     "columnActions": "Actions",
     "loadFailedTitle": "Could not read the preset list",
-    "loadFailedBody": "The Host interface did not respond. Confirm the plugin is enabled, then retry."
+    "loadFailedBody": "The Host interface did not respond. Confirm the plugin is enabled, then retry.",
+    "builtinGroup": "Built-in",
+    "customGroup": "Custom",
+    "thirdPartyGroup": "Third-party",
+    "customHint": "Fork an independent preset from View, or import a file. Custom presets can be edited directly.",
+    "noDescription": "No description yet. Add one when editing this preset."
   },
   "detail": {
     "backToList": "Back to list",
@@ -83,21 +88,22 @@
     "import": "Import",
     "confirmImport": "Confirm import",
     "previewImport": "Preview import",
-    "purge": "Clear data"
+    "purge": "Clear data",
+    "viewConfig": "View",
+    "fork": "Fork",
+    "copy": "Copy"
   },
   "editor": {
     "heading": "Edit preset",
-    "tabPersona": "Persona",
-    "tabYaml": "Advanced YAML",
+    "tabPersona": "Prompt",
+    "tabYaml": "Full YAML",
     "sharedDraft": "Both editors share one draft; switching keeps your changes.",
     "name": "Name",
     "description": "Description",
-    "prefix": "Prefix",
-    "suffix": "Suffix",
-    "complete": "Replace the built-in prompt",
-    "completeHint": "Off by default: the persona adds to the built-in prompt instead of replacing it.",
-    "noPersonaRow": "This preset has no persona row. Filling any field adds one.",
-    "yamlHeading": "Plugin composition",
+    "prefix": "Prefix prompt",
+    "suffix": "Suffix prompt",
+    "noPersonaRow": "No Persona entry exists. Entering a prefix or suffix adds one.",
+    "yamlHeading": "Complete preset document: metadata and plugin composition",
     "yamlHint": "Preserves the DSH YAML dialect, !!js expressions, and unknown fields.",
     "yamlErrorTitle": "YAML could not be parsed",
     "validateAndDiff": "Validate and diff",
@@ -110,7 +116,27 @@
     "diffUnchanged": "{count} unchanged",
     "noChanges": "No change detected.",
     "validateFailedTitle": "Validation failed; nothing was saved",
-    "saveSucceeded": "Saved and registered \"{name}\""
+    "saveSucceeded": "Saved and registered \"{name}\"",
+    "unsavedWarning": "You have unsaved changes. Discard them?",
+    "keepEditing": "Keep editing",
+    "discardChanges": "Discard and close",
+    "prompt": "Prompt",
+    "promptPlaceholder": "Edit this preset’s prompt here.",
+    "tabPlugins": "Plugins & tools",
+    "order": "Order",
+    "stableId": "Stable preset ID; ordinary saves keep its identity",
+    "personaEntry": "Select persona entry",
+    "personaScope": "Edit Persona templates here. Other prompt sections come from plugins.",
+    "otherPromptSections": "Other prompt sections & plugin configuration",
+    "dynamicTemplate": "This is a dynamic expression. Edit it in the plugin entry or full YAML.",
+    "suffixInactive": "This configuration uses only the prefix as its system prompt. The suffix can be saved but is not rendered.",
+    "prefixTab": "Prefix",
+    "suffixTab": "Suffix",
+    "discardTitle": "Discard unsaved changes",
+    "saveTitle": "Confirm save",
+    "saveBody": "Save changes to \"{name}\"? New sessions use the updated preset; existing sessions retain their current revision.",
+    "backToEdit": "Back to editing",
+    "changeSummary": "Metadata: {metadata}. Plugins: {added} added, {changed} changed, {removed} removed."
   },
   "clone": {
     "heading": "Copy preset",
@@ -122,7 +148,8 @@
     "name": "Display name",
     "nameHint": "Leave empty to use \"<source name> copy\".",
     "submit": "Create copy",
-    "succeeded": "Copied as \"{name}\""
+    "succeeded": "Copied as \"{name}\"",
+    "copySuffix": "copy"
   },
   "history": {
     "heading": "History",
@@ -144,7 +171,7 @@
     "risksTitle": "Review before sharing",
     "risksHint": "The following may contain secrets or local paths. The plugin reports them and never rewrites your preset.",
     "noRisks": "No obvious secrets or local paths detected.",
-    "copyShare": "Copy share text",
+    "copyShare": "Export to clipboard",
     "download": "Download YAML",
     "manualHeading": "Share text",
     "manualHint": "Select and copy here if the button failed.",
@@ -208,5 +235,49 @@
     "genericTitle": "Operation failed",
     "revisionConflict": "This preset changed in another tab. Reload it before saving.",
     "notFound": "That preset no longer exists."
+  },
+  "builtin": {
+    "standard": {
+      "name": "Standard mode",
+      "description": "Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed."
+    },
+    "ptc": {
+      "name": "PTC mode",
+      "description": "Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results."
+    },
+    "minimal": {
+      "name": "Minimal mode",
+      "description": "The agent uses a terminal and image reading, with context compaction. Useful for testing and comparing its basic performance."
+    },
+    "cordis": {
+      "name": "Creator mode",
+      "description": "Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode."
+    }
+  },
+  "feedback": {
+    "forking": "Forking",
+    "forked": "Forked",
+    "forkHint": "Create an independent copy of this preset",
+    "copying": "Copying",
+    "copyHint": "Copy the complete share configuration to the clipboard"
+  },
+  "composition": {
+    "package": "Plugin package",
+    "addPlugin": "Add plugin",
+    "addGroup": "Add group",
+    "group": "Group",
+    "disabled": "Disabled",
+    "conditional": "Conditional",
+    "empty": "Add plugins or groups to compose this preset.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "enable": "Enable",
+    "disable": "Disable",
+    "remove": "Remove entry",
+    "entryHint": "Edit the complete entry YAML, preserving config, disabled, inject, intercept, isolate and unknown fields. A group’s config is its child entry list.",
+    "entryYaml": "Selected plugin entry YAML",
+    "oneEntry": "This area must contain exactly one plugin or group entry.",
+    "root": "Root",
+    "addTarget": "Add to: {target}"
   }
 }

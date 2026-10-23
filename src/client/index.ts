@@ -17,11 +17,12 @@
 import * as React from 'react'
 import type { PresetManagerRemoteService } from './api/remote-api.js'
 import { PresetManagerStore } from './state/store.js'
-import { mountRemoteNamespace } from './state/mount-remote.js'
+import { mountRemoteNamespace, type RemoteHost } from './state/mount-remote.js'
 import { PresetManagerPage } from './pages/PresetManagerPage.js'
 import { zh, en } from './locales/index.js'
-import { STYLES } from './styles.js'
 import { PRESET_MANAGER_REMOTE } from '../host/remote/descriptors.js'
+import { registerDiagnostics } from './state/diagnostics.js'
+import { version } from '../../package.json'
 
 /**
  * The Client services this page needs.
@@ -46,7 +47,7 @@ const SECTION_ID = 'dsh-preset-manager'
  * a bundle may import; this also documents exactly which capabilities the page
  * relies on.
  */
-interface ClientContext {
+interface ClientContext extends RemoteHost {
   readonly logger?: { warn(message: string): void }
   readonly slots: {
     inject(key: string, callback: () => () => void): () => void
@@ -89,29 +90,20 @@ export function apply(ctx: ClientContext): void {
   )
 
   const store = new PresetManagerStore()
+  registerDiagnostics(ctx, store, version)
 
-  ctx.effect(() => {
-    let cancelled = false
-    mountRemoteNamespace(
-      ctx,
-      PRESET_MANAGER_REMOTE,
-      (state) => store.attachMount(state),
-      () => cancelled,
-    )
-    return () => {
-      cancelled = true
-    }
-  }, 'dsh-preset-manager: remote namespace')
-
-  ctx.effect(
-    () => {
-      const style = document.createElement('style')
-      style.dataset.dshPresetManager = 'true'
-      style.textContent = STYLES
-      document.head.append(style)
-      return () => style.remove()
-    },
-    'dsh-preset-manager: page styles',
+  let cancelled = false
+  // Cordis owns both the mount and the child consumer. The gate and store
+  // detachment keep late asynchronous settlements from reviving this activation.
+  ctx.effect(() => () => {
+    cancelled = true
+    store.attachMount({ status: 'mounting' })
+  }, 'dsh-preset-manager: remote shutdown gate')
+  mountRemoteNamespace(
+    ctx,
+    PRESET_MANAGER_REMOTE,
+    (state) => store.attachMount(state),
+    () => cancelled,
   )
 
   // Subscribe through a hook so React sees one stable snapshot source.

@@ -5,6 +5,196 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-10-24
+
+### Fixed
+
+- Client readiness now requires the first valid Host snapshot, rather than only
+  local namespace installation. Bundle replacement can temporarily withdraw the
+  Host Service while the Client namespace already exists. The bounded handshake
+  waits only for the exact service-unavailable fault, reuses its initial snapshot
+  and preserves explicit retry; method/schema/carrier errors are shown directly.
+- Handshake waits belong to the namespace consumer and are cancelled on unload.
+- Preserve the original license notices for every dependency bundled into the
+  browser artifact; use portable package references in the editor design notes.
+
+### Tests
+
+- Exercise a real Gateway Service withdrawal/late publication, immediate method
+  failure and explicit readiness retry in a dependency-restricted Client fiber.
+
+## [0.2.2] - 2026-10-24
+
+### Changed
+
+- Replace plain YAML textareas with a shared CodeMirror editor: syntax colors,
+  line numbers, folding, undo history and indentation guides, with theme-derived
+  colors and read-only configuration during saves.
+- Align plugin controls and tree text, adding continuous ancestor branches and
+  last-child connectors.
+- Use compact centered editor dialogs and Prefix/Suffix tabs. Fork now belongs
+  to the viewer, rather than every grid card.
+- Delete, discard and save use independent confirmation dialogs. The parent
+  editor footer stays fixed; nested dialogs restore focus only to active owners.
+
+### Fixed
+
+- Protect complete dynamic Persona config expressions as well as individual
+  expression fields from misleading literal edits.
+
+### Tests
+
+- Cover actual YAML syntax classes, indentation and blank-line scopes, tree
+  connectors/alignment, viewer-only Fork, separate confirmations and dynamic
+  configuration protection.
+
+## [0.2.1] - 2026-10-24
+
+### Tests
+
+- Add a read-only connected-browser check that confirms the running Host returns
+  full preset documents, reporting field names and composition counts without
+  exposing prompt content or modifying data.
+
+## [0.2.0] - 2026-10-24
+
+### Changed
+
+- Use Fork for creating independent presets and Copy for clipboard sharing.
+  Pending, completed and retry feedback stays on the originating button with no
+  success banner. Reduced-motion preferences are respected.
+- Edit the actual DSH structure: preset metadata, both Persona templates,
+  path-selected nested Persona declarations and the complete Cordis plugin tree.
+- Add/remove plugin entries and groups, move siblings, toggle literal enablement
+  and edit complete entry YAML. Preserve scopes, conditional disabled values,
+  inject/intercept/isolate, !!js expressions and unknown configuration.
+- Full-document YAML includes identity, metadata and all plugin entries. Reject
+  accidental identity changes and retain invalid drafts until corrected.
+- Document the difference between Persona templates and the assembled runtime
+  system prompt; existing complete/runtime-context flags remain untouched by
+  ordinary text edits.
+
+### Tests
+
+- Add nested composition mutation, repeated Persona, dynamic-expression and
+  local-feedback regressions. Exercise complete YAML metadata synchronization,
+  nested plugin persistence and stable-identity protection through the real
+  Client/Host entry path.
+
+## [0.1.8] - 2026-10-24
+
+### Changed
+
+- Copy now only creates a duplicate and refreshes the grid. Opening an editor
+  requires the user's separate Edit action.
+- Export writes the share configuration directly to the clipboard, with success
+  reported only after the write resolves. Remove the export-window component.
+- Make editing prompt-first: near-viewport dialog dimensions, compact metadata,
+  a dominant prompt textarea, and no replacement-mode checkbox. Preserve the
+  source's existing composition flags when editing text.
+- Synchronize prompt edits into configuration YAML when switching modes; preserve
+  invalid YAML input rather than overwriting it on a mode switch.
+
+### Tests
+
+- Cover grid-only copying, direct clipboard success/rejection, the removed
+  checkbox, prompt persistence and round-trip editor-mode behavior.
+
+## [0.1.7] - 2026-10-23
+
+### Changed
+
+- Keep the two-column grid mounted as the management home, collapsing only for
+  very narrow containers. View and Edit are separate dialogs opened directly
+  from card actions; copying opens the new copy's editor without a detail-page hop.
+- Use native modal dialogs with contained Escape, browser focus management,
+  return focus, independent scrolling and fixed Save/Cancel controls.
+- Protect unsaved drafts before closing. Failed saves remain actionable, and
+  closing a dialog invalidates late reads. Pending or invalid YAML cannot save.
+
+### Tests
+
+- Assert persistent grid identity, direct editing and separate viewer/editor
+  content. Exercise unsaved draft tracking, actual Host save, retained grid
+  snapshots and late responses after closing.
+
+## [0.1.6] - 2026-10-23
+
+### Changed
+
+- Follow DSH's native Agent Presets page with two-column cards grouped by
+  built-in, custom and third-party presets. Cards show the complete purpose
+  description and keep their management actions in the footer; narrow content
+  containers use one column.
+- Supply the same localized names and short descriptions as DSH for shipped
+  presets whose registry metadata omits them. Authored names and descriptions
+  take precedence and are preserved when making a copy.
+- Replace the source/ID form with a contextual “Copy and edit” action. It copies
+  the clicked preset, generates an unused ID and display name, and opens the
+  editable copy. Duplicate clicks are ignored while the operation is pending.
+
+### Fixed
+
+- Filled buttons and text selection now pair theme foreground and background
+  tokens rather than assuming a fixed white foreground on a theme-dependent
+  brand fill. Hover and pressed states preserve the same pairing.
+- Card actions remain disabled while a mutation is pending, and icon-only actions
+  carry accessible names.
+
+### Tests
+
+- Automatic copy identities are allocated in the Host's serialized creation
+  path, so concurrent pages cannot overwrite an existing copy. Explicit clone
+  IDs that already exist are refused rather than treated as edits.
+- Namespace replacement releases an in-flight copy's busy state. An editor read
+  failure returns to the list and reports that the copy was already created.
+- Add card source/description/action regressions and full Client/Host checks for
+  direct copying, source preservation, repeated copies, concurrent callers,
+  duplicate clicks and recovery after editor or namespace failures.
+
+## [0.1.5] - 2026-10-23
+
+### Fixed
+
+- Mounting a namespace does not inject its Service into the mounting plugin.
+  The Client now consumes `remote.presetManager` from a child fiber declaring
+  that dependency, fixing `cannot get property "remote.presetManager" without inject`.
+- Namespace withdrawal clears the page API and snapshot. Each binding has one
+  stable API object, and late list responses cannot revive a disposed binding.
+- Gateway errors with object-shaped details no longer crash error rendering.
+  API-dependent overlays stop rendering while their namespace is unavailable.
+- Page styles are rendered with the React page and disposed on unmount.
+
+### Tests
+
+- Reproduce the injection failure from a real plugin fiber rather than an
+  unrestricted root Context. Verify the complete packed Client and Host entries,
+  including initial list loading, clone/editor/delete, carrier failure/retry,
+  disable/enable, late responses and cancellation during activation.
+- Add an optional read-only Client Inspect provider, `@rvaim/dsh-preset-manager`,
+  exposing version, mount/load status, preset count and mounted page count so
+  the connected browser can be verified independently of offline tests.
+
+## [0.1.4] - 2026-10-23
+
+### Fixed
+
+- The settings page could not mount any Host endpoint because the remote method
+  `presetManager/remove` collided with `RemoteNamespaceService.remove`, which
+  DSH reserves for namespace cleanup. The wire endpoint is now `deletePreset`;
+  its descriptor maps to the existing Host `remove` implementation, and the
+  Client adapter calls the new endpoint.
+
+### Tests
+
+- Pin Cordis, Gateway and Typert Registry development dependencies to the tested
+  runtime. The binding verifier now mounts the complete descriptor set in real
+  Client/Host Contexts and exercises RPC, strict input rejection and disposal.
+  It reproduces the old endpoint's exact rejection before testing the fix.
+- Verify the current build by default, with an explicit dist-directory option
+  for checking packed or installed artifacts. Verification no longer silently
+  tests a hardcoded desktop profile instead of the release being built.
+
 ## [0.1.3] - 2026-10-23
 
 ### Fixed

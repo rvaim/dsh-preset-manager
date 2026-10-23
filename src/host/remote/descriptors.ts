@@ -45,6 +45,7 @@ interface InvocationDescriptor {
   readonly service: string
   readonly namespace: string
   readonly method: string
+  readonly implementation?: string
   readonly invocation: { readonly kind: 'direct' }
   readonly parameters: readonly InvocationParameter[]
   readonly result: StrictCodec
@@ -132,12 +133,14 @@ const anyResult = jsonCodec('Result', (value) =>
 function method(
   name: string,
   parameters: readonly InvocationParameter[],
+  implementation?: string,
 ): InvocationDescriptor {
   return {
     id: `${PRESET_MANAGER_PACKAGE}#${PRESET_MANAGER_NAMESPACE}/${name}`,
     service: PRESET_MANAGER_SERVICE,
     namespace: PRESET_MANAGER_NAMESPACE,
     method: name,
+    ...(implementation === undefined ? {} : { implementation }),
     invocation: { kind: 'direct' },
     parameters,
     result: anyResult,
@@ -172,7 +175,7 @@ export const PRESET_MANAGER_DESCRIPTORS: readonly InvocationDescriptor[] = Objec
 
   method('clone', [
     jsonParameter('sourceId', stringCodec('PresetId')),
-    jsonParameter('newId', stringCodec('PresetId')),
+    jsonParameter('newId', optionalStringCodec('OptionalPresetId'), true),
     jsonParameter('name', optionalStringCodec('OptionalName'), true),
     jsonParameter('description', optionalStringCodec('OptionalDescription'), true),
   ]),
@@ -182,10 +185,12 @@ export const PRESET_MANAGER_DESCRIPTORS: readonly InvocationDescriptor[] = Objec
     jsonParameter('expectedRevision', optionalStringCodec('OptionalRevision'), true),
   ]),
 
-  method('remove', [
+  // `remove` belongs to DSH's RemoteNamespaceService lifecycle. Export a
+  // domain-specific wire name and let Gateway dispatch to the existing face.
+  method('deletePreset', [
     jsonParameter('id', stringCodec('PresetId')),
     jsonParameter('acknowledgedDefaultRisk', optionalBooleanCodec('OptionalFlag'), true),
-  ]),
+  ], 'remove'),
 
   method('restore', [
     jsonParameter('id', stringCodec('PresetId')),
