@@ -8,3 +8,9 @@ Thumbs.db
 .vscode/
 .idea/
 .ref/
+*.tgz
+
+# Publish credentials must never enter the repository.
+.npmrc
+.npmrc.*
+!.npmrc.example
