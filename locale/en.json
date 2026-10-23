@@ -1,0 +1,159 @@
+{
+  "nav": "Presets",
+  "title": "Agent Preset Manager",
+  "subtitle": "Register agent presets at runtime without editing any DSH configuration file",
+  "loading": "Reading presets…",
+  "loadFailed": "Could not read the preset list",
+  "retry": "Retry",
+  "refresh": "Refresh",
+  "back": "Back to list",
+  "empty": "No preset is managed by this plugin yet. Start by copying any existing preset.",
+  "busy": "Working…",
+  "column": {
+    "name": "Name",
+    "id": "ID",
+    "ownership": "Ownership",
+    "plugins": "Plugins",
+    "state": "State",
+    "actions": "Actions"
+  },
+  "ownership": {
+    "managed": "This plugin",
+    "builtin": "Built-in",
+    "third-party": "Third-party"
+  },
+  "registration": {
+    "registered": "Registered",
+    "not-registered": "Not registered",
+    "registering": "Registering",
+    "failed": "Registration failed"
+  },
+  "health": {
+    "healthy": "Healthy",
+    "broken": "Broken",
+    "unchecked": "Unchecked"
+  },
+  "action": {
+    "view": "View",
+    "clone": "Copy",
+    "edit": "Edit",
+    "editPersona": "Edit Persona",
+    "editYaml": "Advanced YAML",
+    "history": "History",
+    "export": "Export",
+    "copyShare": "Copy share text",
+    "download": "Download YAML",
+    "delete": "Delete",
+    "save": "Save",
+    "restore": "Restore this version",
+    "import": "Import preset",
+    "preview": "Preview",
+    "confirmImport": "Confirm import",
+    "cancel": "Cancel",
+    "purge": "Clear all plugin data"
+  },
+  "detail": {
+    "metadata": "Details",
+    "composition": "Plugin composition",
+    "compositionHint": "The complete plugin rows this preset declares, shown read-only.",
+    "readonlyNote": "Built-in and third-party presets can be viewed and copied, but never edited or deleted.",
+    "defaultBadge": "DSH default",
+    "dataDirectory": "Data directory"
+  },
+  "editor": {
+    "personaTitle": "Persona editor",
+    "yamlTitle": "Advanced YAML editor",
+    "prefix": "prefix (leading instruction)",
+    "suffix": "suffix (trailing instruction)",
+    "complete": "complete (replace the built-in prompt)",
+    "completeHint": "Off by default: the persona is added on top of the built-in prompt instead of replacing it.",
+    "name": "Name",
+    "description": "Description",
+    "draftShared": "The Persona and YAML editors share one draft; switching keeps your changes.",
+    "yamlHint": "The full plugin composition, preserving the DSH YAML dialect, !!js expressions, and unknown fields.",
+    "yamlInvalid": "YAML could not be parsed",
+    "validate": "Validate and diff",
+    "noChanges": "No change detected.",
+    "diffTitle": "Changes about to be saved",
+    "diffMetadata": "Metadata",
+    "diffAdded": "Added plugins",
+    "diffRemoved": "Removed plugins",
+    "diffChanged": "Changed plugins",
+    "diffUnchanged": "Unchanged plugins",
+    "unsaved": "Unsaved changes",
+    "personaMissing": "This preset has no persona row; filling any field adds one."
+  },
+  "history": {
+    "title": "History",
+    "empty": "No history yet. Revisions appear here after you save a change.",
+    "savedAt": "Saved at",
+    "reason": "Origin",
+    "reasonCreate": "Created",
+    "reasonSave": "Saved",
+    "reasonImport": "Imported",
+    "reasonRestore": "Restored",
+    "restoreWarning": "Restoring registers that revision as current; the current one is archived first."
+  },
+  "clone": {
+    "title": "Copy preset",
+    "source": "Source preset",
+    "newId": "New preset ID",
+    "newIdHint": "Lowercase letters, digits, dots, underscores, and hyphens only.",
+    "name": "Display name",
+    "submit": "Create copy",
+    "mustPickSource": "Choose a source preset",
+    "idRequired": "Enter a new preset ID"
+  },
+  "share": {
+    "title": "Export and share",
+    "risks": "The following may need review before sharing",
+    "noRisks": "No obvious secrets or local paths were detected.",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed; select and copy the text below manually",
+    "manualCopy": "Manual copy area",
+    "downloadStarted": "Download started"
+  },
+  "import": {
+    "title": "Import preset",
+    "paste": "Paste share text",
+    "pickFile": "Choose a YAML file",
+    "readClipboard": "Read clipboard",
+    "clipboardFailed": "Could not read the clipboard; paste the text manually",
+    "preview": "Parse and preview",
+    "previewTitle": "Import preview",
+    "risks": "Risks and compatibility notes",
+    "mustAcknowledge": "I have reviewed the risks above and confirm the import",
+    "idConflict": "ID conflict",
+    "idConflictHint": "That ID is taken; use the suggested ID below.",
+    "suggestedId": "Suggested ID",
+    "blockedMissing": "A required plugin package is missing; this preset would not activate",
+    "nothingApplied": "Preview writes no file and registers no preset."
+  },
+  "delete": {
+    "title": "Delete preset",
+    "confirm": "Delete the preset \"{id}\"? The final revision stays available in history.",
+    "defaultRiskTitle": "This preset is DSH's default",
+    "defaultRisk": "This plugin never changes DSH's own default-preset setting. After deletion a new session may reference a preset that no longer exists; set the default back to a built-in preset in DSH settings.",
+    "defaultRiskConfirm": "I understand and still want to delete it"
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "quarantine": "A preset file could not be parsed and was quarantined",
+    "degraded": "Some presets did not load correctly",
+    "copy": "Copy diagnostics"
+  },
+  "purge": {
+    "title": "Clear all plugin data",
+    "warning": "This deletes every preset, history entry, and metadata file under this plugin's data directory. It cannot be undone (a backup is written first).",
+    "instruction": "Type DELETE ALL PRESET DATA to confirm",
+    "done": "Plugin data cleared"
+  },
+  "defaultNote": {
+    "title": "About the default preset",
+    "body": "This plugin never modifies the default preset DSH persists. You can pick a preset registered here with DSH's own selector; if you make one the default, set it back to a built-in preset before deleting it."
+  },
+  "meta": {
+    "title": "Agent Preset Manager",
+    "description": "Register and manage agent presets at runtime without editing any DSH configuration file"
+  }
+}

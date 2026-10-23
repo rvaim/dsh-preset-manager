@@ -1,0 +1,3 @@
+- insert:
+    - id: preset-manager
+      name: '@rvaim/dsh-preset-manager'

@@ -1,0 +1,166 @@
+/**
+ * ZH dictionary for the preset manager settings page.
+ *
+ * Kept as a typed literal so a missing key is a compile error rather than a
+ * runtime fallback to the key name. The source of truth for translation text;
+ * `locale/zh.json` mirrors it for plugin-manager display metadata.
+ */
+export const zh: Record<string, unknown> = {
+  "nav": "预设管理",
+  "title": "Agent 预设管理器",
+  "subtitle": "在运行时注册 Agent 预设，不改动任何 DSH 配置文件",
+  "loading": "正在读取预设…",
+  "loadFailed": "无法读取预设列表",
+  "retry": "重试",
+  "refresh": "刷新",
+  "back": "返回列表",
+  "empty": "还没有本插件管理的预设。可以从任意现有预设复制一个开始。",
+  "busy": "正在处理…",
+  "column": {
+    "name": "名称",
+    "id": "ID",
+    "ownership": "归属",
+    "plugins": "插件",
+    "state": "状态",
+    "actions": "操作"
+  },
+  "ownership": {
+    "managed": "本插件",
+    "builtin": "内置",
+    "third-party": "第三方"
+  },
+  "registration": {
+    "registered": "已注册",
+    "not-registered": "未注册",
+    "registering": "注册中",
+    "failed": "注册失败"
+  },
+  "health": {
+    "healthy": "正常",
+    "broken": "异常",
+    "unchecked": "未检查"
+  },
+  "action": {
+    "view": "查看",
+    "clone": "复制",
+    "edit": "编辑",
+    "editPersona": "编辑 Persona",
+    "editYaml": "高级 YAML",
+    "history": "历史版本",
+    "export": "导出",
+    "copyShare": "复制分享文本",
+    "download": "下载 YAML",
+    "delete": "删除",
+    "save": "保存",
+    "restore": "恢复此版本",
+    "import": "导入预设",
+    "preview": "预览",
+    "confirmImport": "确认导入",
+    "cancel": "取消",
+    "purge": "清除全部插件数据"
+  },
+  "detail": {
+    "metadata": "基本信息",
+    "composition": "插件组合",
+    "compositionHint": "以下为该预设声明的完整插件行，只读展示。",
+    "readonlyNote": "内置预设与其他插件注册的预设只能查看和复制，不能修改或删除。",
+    "defaultBadge": "DSH 默认预设",
+    "dataDirectory": "数据目录"
+  },
+  "editor": {
+    "personaTitle": "Persona 编辑",
+    "yamlTitle": "高级 YAML 编辑",
+    "prefix": "prefix（前缀指令）",
+    "suffix": "suffix（后缀指令）",
+    "complete": "complete（替换内置提示词）",
+    "completeHint": "默认保持关闭：Persona 会追加到内置提示词之上，而不是替换它。",
+    "name": "名称",
+    "description": "描述",
+    "draftShared": "Persona 与 YAML 编辑共享同一份草稿，切换不会丢失修改。",
+    "yamlHint": "完整插件组合，保留 DSH YAML 方言、!!js 表达式与未知字段。",
+    "yamlInvalid": "YAML 解析失败",
+    "validate": "校验并对比",
+    "noChanges": "没有检测到任何变更。",
+    "diffTitle": "将要保存的变更",
+    "diffMetadata": "元数据",
+    "diffAdded": "新增插件",
+    "diffRemoved": "移除插件",
+    "diffChanged": "修改插件",
+    "diffUnchanged": "未变更的插件数",
+    "unsaved": "有未保存的修改",
+    "personaMissing": "该预设没有 persona 插件行；填写任一字段会新增一行 persona 配置。"
+  },
+  "history": {
+    "title": "历史版本",
+    "empty": "还没有历史版本。保存过一次修改后就会出现在这里。",
+    "savedAt": "保存时间",
+    "reason": "来源",
+    "reasonCreate": "新建",
+    "reasonSave": "保存",
+    "reasonImport": "导入",
+    "reasonRestore": "恢复",
+    "restoreWarning": "恢复会把该历史版本重新注册为当前版本，当前版本会先被归档。"
+  },
+  "clone": {
+    "title": "复制预设",
+    "source": "源预设",
+    "newId": "新预设 ID",
+    "newIdHint": "只能使用小写字母、数字、点、下划线和连字符。",
+    "name": "显示名称",
+    "submit": "创建副本",
+    "mustPickSource": "请选择一个源预设",
+    "idRequired": "请填写新预设 ID"
+  },
+  "share": {
+    "title": "导出与分享",
+    "risks": "检测到以下内容可能需要确认",
+    "noRisks": "未检测到明显的密钥或本机路径。",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败，请手动选择并复制下方文本",
+    "manualCopy": "手动复制区域",
+    "downloadStarted": "已开始下载"
+  },
+  "import": {
+    "title": "导入预设",
+    "paste": "粘贴分享文本",
+    "pickFile": "选择 YAML 文件",
+    "readClipboard": "读取剪贴板",
+    "clipboardFailed": "无法读取剪贴板，请手动粘贴文本",
+    "preview": "解析并预览",
+    "previewTitle": "导入预览",
+    "risks": "风险与兼容性提示",
+    "mustAcknowledge": "我已了解上述风险，并确认导入",
+    "idConflict": "ID 冲突",
+    "idConflictHint": "该 ID 已被占用，请改用下面的建议 ID。",
+    "suggestedId": "建议 ID",
+    "blockedMissing": "缺少插件包，导入后该预设将无法激活",
+    "nothingApplied": "预览阶段不会写入文件，也不会注册任何预设。"
+  },
+  "delete": {
+    "title": "删除预设",
+    "confirm": "确定要删除预设「{id}」吗？最后一份配置会保留在历史版本中。",
+    "defaultRiskTitle": "该预设是 DSH 的默认预设",
+    "defaultRisk": "本插件不会修改 DSH 自身的默认预设设置。删除后，新会话可能引用一个已不存在的预设；你需要在 DSH 设置中把默认预设改回内置项。",
+    "defaultRiskConfirm": "我已了解，仍然删除"
+  },
+  "diagnostics": {
+    "title": "诊断信息",
+    "quarantine": "有预设文件无法解析，已隔离保留",
+    "degraded": "部分预设未能正常加载",
+    "copy": "复制诊断"
+  },
+  "purge": {
+    "title": "清除全部插件数据",
+    "warning": "该操作会删除本插件数据目录下的全部预设、历史与元数据，且不可撤销（会先写入一份备份）。",
+    "instruction": "请输入 DELETE ALL PRESET DATA 以确认",
+    "done": "插件数据已清除"
+  },
+  "defaultNote": {
+    "title": "关于默认预设",
+    "body": "本插件不会修改 DSH 持久化的默认预设设置。你可以使用 DSH 原生预设选择器选择本插件注册的预设；如果把它设为默认，在删除该预设前请先改回内置预设。"
+  },
+  "meta": {
+    "title": "Agent 预设管理器",
+    "description": "在运行时注册与管理 Agent 预设，完全不修改 DSH 配置文件"
+  }
+}

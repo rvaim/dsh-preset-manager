@@ -1,0 +1,86 @@
+{
+  "name": "@rvaim/dsh-preset-manager",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness Agent preset manager: register and manage agent presets at runtime without editing any DSH configuration file.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "agent-preset",
+    "preset-manager",
+    "persona"
+  ],
+  "homepage": "https://github.com/rvaim/dsh-preset-manager#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rvaim/dsh-preset-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rvaim/dsh-preset-manager/issues"
+  },
+  "author": "rvaim",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./dist/host/index.js"
+    },
+    "./client": {
+      "default": "./dist/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/host/",
+    "dist/client.js",
+    "dist/shared/",
+    "dist/domain/",
+    "dist/sharing/",
+    "locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "0.2.1-rc.2"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "node scripts/run-tests.mjs",
+    "verify": "npm run typecheck && npm run test && npm run build",
+    "prepublishOnly": "npm run verify",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.19.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.25.10",
+    "react": "^18.3.1",
+    "typescript": "^5.9.3"
+  }
+}
