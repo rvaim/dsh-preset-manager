@@ -6,7 +6,7 @@
 [![license](https://img.shields.io/npm/l/@rvaim/dsh-preset-manager.svg)](./LICENSE)
 
 - 包名：`@rvaim/dsh-preset-manager`
-- 版本：`0.1.0`
+- 版本：`0.1.3`
 - 中文名：Agent 预设管理器
 - 设置页：DSH Web「设置 → 预设管理」
 - 数据目录：`$DSH_HOME/dsh-preset-manager/`
@@ -57,9 +57,9 @@ DSH 的 Agent 预设原本只能在 Cordis 组合（`cordis.patch.yml` 或 Bundl
 
 **未经人工点击确认的部分，我不宣称已通过视觉验收。**
 
-### 0.1.2 修复说明
+### 0.1.3 修复说明
 
-上一版（0.1.0）在真实页面上有两个缺陷，均已在 0.1.2 修复：
+上一版在真实页面上有两个缺陷，均已修复：
 
 1. **所有 Remote 调用失败，页面显示「Host 接口尚未就绪」。**
    根因是 gateway 的绑定校验要求 `typertRemote.service === 被提供的对象本身`。

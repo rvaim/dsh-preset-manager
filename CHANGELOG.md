@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2026-10-23
+## [0.1.3] - 2026-10-23
 
 ### Fixed
 
@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dict[key]` lookup; it does not walk nested objects. The dictionaries are now
   flattened before registration, and a test asserts both languages carry the
   same flat key set with the placeholders the page interpolates.
+
+### Changed
+
+- Complete visual and ergonomic redesign following `/impeccable` Operate mode:
+  - Row list layout with clear metadata and status chips instead of uniform card grids.
+  - Consistent 16px geometric outline icon system.
+  - Clean single-panel container with hairline borders and subtle depth.
+  - Action-oriented button labels and helpful error descriptions.
+  - Themed selection, code scrollbar, and focus rings.
+
+## [0.1.2] - 2026-10-23
+
+Internal release with initial binding and locale fixes.
 
 ## [0.1.1] - 2026-10-23
 
