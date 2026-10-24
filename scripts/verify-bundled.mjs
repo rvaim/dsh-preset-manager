@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -12,10 +13,17 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const base = resolve(tmpdir())
 const temporary = await mkdtemp(join(base, 'dshpm-pack-'))
 try {
+  // `npm publish --dry-run` exports npm_config_dry_run, and npm forwards it to
+  // any nested npm. `npm pack` then reports success while writing no tarball,
+  // which would make this check unpack a file that was never produced. Packing
+  // is the subject of the check, not something to simulate away.
+  const environment = { ...process.env }
+  delete environment.npm_config_dry_run
   const result = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', temporary], {
-    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: environment,
   }))[0]
   assert.equal(basename(result.filename), result.filename)
+  assert.ok(existsSync(join(temporary, result.filename)), 'npm pack reported success without writing a tarball')
   const names = new Set(result.files.map((file) => file.path))
   const resources = [
     'standard-efficient/prefix.md',
