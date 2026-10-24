@@ -237,6 +237,14 @@
     "notFound": "找不到该预设，可能已被删除。"
   },
   "builtin": {
+    "standard-efficient": {
+      "name": "标准增强",
+      "description": "基于 DSH Standard 的自适应高效编码 Agent"
+    },
+    "codex-original": {
+      "name": "Codex 原版",
+      "description": "使用 OpenAI Codex 官方公开基础提示词原文的实验预设"
+    },
     "standard": {
       "name": "标准模式",
       "description": "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。"

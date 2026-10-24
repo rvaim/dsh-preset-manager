@@ -7,3 +7,6 @@
 *.jpg binary
 *.ico binary
 *.tgz binary
+
+# Preserve the pinned upstream prompt, including its original trailing space.
+resources/codex-original/prompt.md whitespace=-blank-at-eol

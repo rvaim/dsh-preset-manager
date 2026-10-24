@@ -34,6 +34,10 @@ execFileSync(
   { stdio: 'inherit', cwd: root },
 )
 
+step('checking bundled prompt resources')
+const { loadBundledPrompts } = await import('../dist/host/bundled/local-prompts.js')
+await loadBundledPrompts()
+
 // The declarations above only exist to satisfy tsc; they are not runtime code,
 // but tsc emits nothing for a .d.ts and we should not ship the shim itself.
 rmSync(join(dist, 'host/cordis-shim.d.ts'), { force: true })

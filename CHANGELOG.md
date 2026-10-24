@@ -5,6 +5,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.3.0] - 2026-10-24
+
+### Added
+
+- Ship read-only `standard-efficient` (标准增强 / Standard Efficient) and
+  `codex-original` (Codex 原版 / Codex Original). Each activation derives the
+  complete composition from the running DSH Standard declaration, changing only
+  identity metadata and Persona Prefix, preserving all other configuration.
+- Vendor the complete, unmodified OpenAI Codex base prompt at commit
+  `970111f6cb62cc02fe36a82ea7d71b37a2889c97`, with SHA-256 provenance, Apache-2.0
+  LICENSE and upstream NOTICE. Load local packaged resources only and reject
+  checksum mismatches or template delimiters in the upstream original.
+- Own bundled registration separately from user data, preserving existing ID
+  collisions and cancelling startup/withdrawing registrations on unload.
+
+### Fixed
+
+- Align `engines.dsh` with the current DSH SDK used by the Gateway and entry
+  checks, allowing the verified build to activate on the current desktop runtime.
+
+### Tests
+
+- Verify the complete Standard tree, read-only/fork lifecycle, local resource
+  integrity and actual unpacked npm tarball contents.
+
 ## [0.2.3] - 2026-10-24
 
 ### Fixed

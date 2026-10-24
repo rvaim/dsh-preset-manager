@@ -32,6 +32,7 @@ import {
 } from './adapters/dsh-preset-source.js'
 import { RegistrationManager } from './lifecycle/registration-manager.js'
 import { restoreStoredPresets } from './lifecycle/startup-restore.js'
+import { BundledPresetRegistration } from './bundled/registration.js'
 import { PresetManagerService } from './application/preset-manager-service.js'
 import type { ApplicationDeps } from './application/deps.js'
 import { createRemoteFace } from './remote/preset-manager-remote.js'
@@ -89,14 +90,22 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
     warn: (message) => ctx.logger?.warn?.(message) ?? undefined,
   })
 
-  const registry = (ctx as unknown as { agentPresets: AgentPresetRegistryLike }).agentPresets
+  const registry = (ctx as unknown as {
+    agentPresets: AgentPresetRegistryLike & AgentPresetDocumentReader
+  }).agentPresets
 
   const managedIds = new Set<string>()
   const managedIdRegistry = {
     has: (id: string): boolean => managedIds.has(id),
   }
+  const loader = services.get('loader') as { await(): Promise<void> } | undefined
+  const bundled = new BundledPresetRegistration({
+    registry,
+    managedIds: managedIdRegistry,
+    waitUntilReady: () => loader?.await() ?? Promise.resolve(),
+  })
 
-  const isShippedPreset = (id: string): boolean => SHIPPED_PRESET_IDS.includes(id)
+  const isShippedPreset = (id: string): boolean => SHIPPED_PRESET_IDS.includes(id) || bundled.owns(id)
 
   const runtime = new DynamicPresetRegistryAdapter({
     registry,
@@ -110,11 +119,8 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
     warn: (message) => ctx.logger?.warn?.(message) ?? undefined,
   })
 
-  const reader = ctx as unknown as AgentPresetDocumentReader & {
-    agentPresets: AgentPresetDocumentReader
-  }
   const source = new DshPresetSource({
-    reader: reader.agentPresets,
+    reader: registry,
     managedIds: managedIdRegistry,
     isShippedPreset,
     defaultId: async () => readDefaultPresetId(services),
@@ -142,11 +148,16 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
 
   // ---- disposal: registered once, covering every registration this plugin owns
   ctx.effect(() => {
-    return () => shutdown(service, registrations, services)
+    return () => shutdown(service, registrations, services, bundled)
   }, 'dsh-preset-manager: preset registrations')
 
   // ---- startup restore
   const diagnostics: ValidationIssue[] = []
+  const startBundled = (): void => {
+    service.waitForStartup(bundled.start().then((issues) => {
+      if (service.currentPhase !== 'stopped') service.markReady([...diagnostics, ...issues])
+    }))
+  }
 
   if (config.skipRestore === true) {
     diagnostics.push({
@@ -155,6 +166,7 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
     })
     service.markReady(diagnostics)
     await populateManagedIds(repository, managedIds)
+    startBundled()
     return
   }
 
@@ -184,6 +196,7 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
   }
 
   service.markReady(diagnostics)
+  startBundled()
 }
 
 /**
@@ -198,6 +211,7 @@ async function shutdown(
   service: PresetManagerService,
   registrations: RegistrationManager,
   services: HostServices,
+  bundled: BundledPresetRegistration,
 ): Promise<void> {
   service.markStopped()
   registrations.beginShutdown()
@@ -207,7 +221,11 @@ async function shutdown(
     /* a queued mutation's failure is already reported to its caller */
   }
   try {
-    await registrations.shutdown()
+    try {
+      await bundled.dispose()
+    } finally {
+      await registrations.shutdown()
+    }
   } finally {
     remove(services, PRESET_MANAGER_SERVICE)
   }

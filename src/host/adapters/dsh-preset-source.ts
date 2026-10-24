@@ -135,6 +135,7 @@ export class DshPresetSource implements PresetSource {
       id,
       ...(document.name === undefined ? {} : { name: document.name }),
       ...(document.description === undefined ? {} : { description: document.description }),
+      ...(summary.order === undefined ? {} : { order: summary.order }),
       plugins,
     }
 

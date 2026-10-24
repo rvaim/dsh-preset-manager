@@ -5,7 +5,7 @@ import { PresetList, PresetCard, type PresetListProps } from '../../client/featu
 import { presetDisplay } from '../../client/features/preset-display.js'
 import { ActionButton } from '../../client/components/ActionButton.js'
 import { Button } from '../../client/components/primitives.js'
-import { zh } from '../../client/locales/index.js'
+import { zh, en } from '../../client/locales/index.js'
 import { OperationNotice, PresetWorkspace, type Confirmation } from '../../client/pages/PresetManagerPage.js'
 import { PresetManagerStore } from '../../client/state/store.js'
 import { Dialog } from '../../client/components/Dialog.js'
@@ -40,6 +40,17 @@ describe('native preset cards', () => {
       const display = presetDisplay({ ...source, id }, t)
       assert.ok(display.description.length > 20)
       assert.equal(display.description.includes('builtin.'), false)
+    }
+  })
+  it('localizes bundled names even when the Host publishes a Chinese name', () => {
+    for (const [id, chinese, english] of [
+      ['standard-efficient', '标准增强', 'Standard Efficient'],
+      ['codex-original', 'Codex 原版', 'Codex Original'],
+    ] as const) {
+      const summary = { ...source, id, name: chinese }
+      assert.equal(presetDisplay(summary, t).name, chinese)
+      assert.equal(presetDisplay(summary, (key) => en[key] ?? key).name, english)
+      assert.equal(presetDisplay({ ...summary, ownership: 'managed', name: 'My copy' }, t).name, 'My copy')
     }
   })
   it('preserves a custom preset author’s description', () => {

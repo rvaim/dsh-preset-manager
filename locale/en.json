@@ -237,6 +237,14 @@
     "notFound": "That preset no longer exists."
   },
   "builtin": {
+    "standard-efficient": {
+      "name": "Standard Efficient",
+      "description": "An adaptive, efficient coding agent based on DSH Standard."
+    },
+    "codex-original": {
+      "name": "Codex Original",
+      "description": "An experimental preset using the unmodified public base prompt from OpenAI Codex."
+    },
     "standard": {
       "name": "Standard mode",
       "description": "Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed."

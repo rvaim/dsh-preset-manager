@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "resource": "codex-original",
+  "captured_at_utc": "2026-10-24T07:31:56Z",
+  "source": {
+    "repository": "openai/codex",
+    "source_url": "https://github.com/openai/codex/blob/main/codex-rs/models-manager/prompt.md",
+    "resolved_branch": "main",
+    "commit": "970111f6cb62cc02fe36a82ea7d71b37a2889c97",
+    "commit_timestamp_utc": "2026-10-23T18:50:54Z",
+    "permanent_url": "https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/codex-rs/models-manager/prompt.md",
+    "pinned_raw_url": "https://raw.githubusercontent.com/openai/codex/970111f6cb62cc02fe36a82ea7d71b37a2889c97/codex-rs/models-manager/prompt.md",
+    "path": "codex-rs/models-manager/prompt.md"
+  },
+  "files": [
+    {
+      "local_path": "prompt.md",
+      "source_path": "codex-rs/models-manager/prompt.md",
+      "git_blob_sha1": "907ff8b877026871b088f01f4366cea36e1f02cd",
+      "sha256": "ac8ae107a0d72fe3476b430afb161ea4e67da2e446d778aefc44828160559807",
+      "bytes": 20903,
+      "lines": 275
+    },
+    {
+      "local_path": "LICENSE",
+      "source_path": "LICENSE",
+      "git_blob_sha1": "4606e72e042564097e8780d66c1d4dcb611869bd",
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+      "bytes": 10926
+    },
+    {
+      "local_path": "NOTICE",
+      "source_path": "NOTICE",
+      "git_blob_sha1": "2805899d56d0332d175cfc613c67d45d6f006db7",
+      "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+      "bytes": 242
+    }
+  ],
+  "verification": {
+    "prompt_read_in_full": true,
+    "license_read_in_full": true,
+    "notice_read_in_full": true,
+    "language_scope_license_check":
+      "No LICENSE, NOTICE, or COPYING file exists at or below codex-rs/models-manager at this commit.",
+    "language_scope_license_evidence": {
+      "models_manager_manifest_path": "codex-rs/models-manager/Cargo.toml",
+      "models_manager_license": "workspace",
+      "workspace_manifest_path": "codex-rs/Cargo.toml",
+      "workspace_license": "Apache-2.0"
+    },
+    "downloaded_file_identity": "Git blob SHA-1 of each downloaded file matches the GitHub tree entry.",
+    "prompt_newline_bytes": "LF only; no CR bytes",
+    "prompt_template_markers": {
+      "mustache_double_brace": 0,
+      "dollar_brace": 0,
+      "erb": 0,
+      "hash_brace": 0,
+      "double_bracket": 0,
+      "brace_characters": {
+        "line": 132,
+        "open": 1,
+        "close": 1,
+        "form": "single-level JSON command example; not a template token"
+      }
+    }
+  },
+  "license": {
+    "license_file": "LICENSE",
+    "notice_file": "NOTICE",
+    "license": "Apache-2.0",
+    "notices_preserved": true
+  }
+}

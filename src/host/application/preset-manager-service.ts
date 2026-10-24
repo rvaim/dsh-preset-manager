@@ -49,6 +49,7 @@ export class PresetManagerService {
   /** Serializes every mutation so two edits cannot interleave. */
   private chain: Promise<unknown> = Promise.resolve()
   private pending = 0
+  private startup: Promise<unknown> = Promise.resolve()
 
   constructor(deps: ApplicationDeps) {
     this.deps = deps
@@ -56,12 +57,19 @@ export class PresetManagerService {
 
   // ------------------------------------------------------------ lifecycle
 
+  /** Wait for bundled declarations without holding the Host's apply open. */
+  waitForStartup(startup: Promise<unknown>): void {
+    this.startup = startup
+  }
+
   /** Publish the restore diagnostics and settle into a phase. */
   markReady(diagnostics: readonly ValidationIssue[]): void {
     this.diagnostics = [...diagnostics]
     this.phase = diagnostics.some(
       (issue) =>
         issue.code === 'startup.registration-failed' ||
+        issue.code === 'bundled.registration-failed' ||
+        issue.code === 'bundled.id-conflict' ||
         issue.code === 'storage.unreadable' ||
         issue.code === 'storage.quarantined',
     )
@@ -89,6 +97,7 @@ export class PresetManagerService {
   // ------------------------------------------------------------- read side
 
   async snapshot(): Promise<ManagerSnapshot> {
+    await this.startup
     this.assertUsable()
     return listPresets(this.deps, {
       phase: this.phase,

@@ -5,7 +5,7 @@
  * services are fixtures. No DOM/React renderer is emulated and no profile changes.
  */
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
@@ -15,13 +15,17 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import HostGateway from '@deepseek-ai/dsh-api-gateway'
 import * as ClientGateway from '@deepseek-ai/dsh-api-gateway/client'
+import yaml from 'js-yaml'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const dist = resolve(process.argv[2] ?? join(root, 'dist'))
 const hostEntry = await import(pathToFileURL(join(dist, 'host/index.js')).href)
 const { replaceCompositionRow } = await import(pathToFileURL(join(dist, 'domain/composition-editor.js')).href)
 const { writePersona } = await import(pathToFileURL(join(dist, 'domain/persona-editor.js')).href)
-const { dumpPluginRows, dumpPresetDocument } = await import(pathToFileURL(join(dist, 'domain/preset-model.js')).href)
+const { dumpPluginRows, dumpPresetDocument, entryListSchema } = await import(pathToFileURL(join(dist, 'domain/preset-model.js')).href)
+const standardPatch = yaml.load(await readFile(join(root, 'src/tests/fixtures/standard-current.patch.yml'), 'utf8'), { schema: entryListSchema })
+const standardDefinition = standardPatch[0].insert[0].config
+const standardBefore = JSON.stringify(standardDefinition)
 const host = new Context()
 const client = new Context()
 const temporaryBase = resolve(tmpdir())
@@ -29,7 +33,7 @@ const temporaryHome = await mkdtemp(join(temporaryBase, 'dshpm-client-'))
 const interceptors = new Set()
 const providers = new Map()
 const rows = new Map([
-  ['standard', { id: 'standard', name: '标准', plugins: [] }],
+  ['standard', standardDefinition],
   ['ptc', { id: 'ptc', name: 'PTC', description: 'PTC fixture', plugins: [
     { name: '@deepseek-ai/dsh-persona', config: { prefix: 'selected second preset', complete: true } },
   ] }],
@@ -50,7 +54,7 @@ const peer = { principal: { kind: 'owner' }, interactions: 'none', signal: new A
 
 // Faithful registry fixture; the plugin's real repository and use cases own data.
 const registry = {
-  async list() { return [...rows.values()].map(({ id, name, description }) => ({ id, name, description })) },
+  async list() { return [...rows.values()].map(({ id, name, description, order }) => ({ id, name, description, order })) },
   async readDocument(id) {
     const definition = rows.get(id)
     if (!definition) throw new Error(`Unknown preset ${id}`)
@@ -120,8 +124,22 @@ try {
   } } })
   host.provide('dshHomePath', () => temporaryHome)
   host.provide('agentPresets', registry)
+  let releaseHostTree
+  const hostTreeReady = new Promise((resolve) => { releaseHostTree = resolve })
+  host.provide('loader', { await: () => hostTreeReady })
   await host.plugin(HostGateway)
   const hostPlugin = await host.plugin(hostEntry)
+  let initialSnapshotSettled = false
+  const initialSnapshot = host.get('presetManager').snapshot().then((snapshot) => {
+    initialSnapshotSettled = true
+    return snapshot
+  })
+  await new Promise(setImmediate)
+  check('Host apply settles while the initial snapshot waits for the Standard source', () => assert.equal(initialSnapshotSettled, false))
+  releaseHostTree()
+  await initialSnapshot
+  const storedAtStartup = await readdir(join(temporaryHome, 'dsh-preset-manager', 'presets'))
+  check('bundled startup does not create user preset files', () => assert.deepEqual(storedAtStartup, []))
 
   await client.plugin(TypertRegistry)
   client.provide('connection', {
@@ -184,9 +202,35 @@ try {
   check('read-only diagnostics reflect the actual page store', () => {
     assert.equal(status.mountStatus, 'ready')
     assert.equal(status.loadStatus, 'ready')
-    assert.equal(status.presetCount, 2)
+    assert.equal(status.presetCount, 4)
     assert.doesNotThrow(() => JSON.stringify(status))
   })
+
+  const bundledApi = store.apiForPanel
+  const codexText = await readFile(join(dist, '..', 'resources/codex-original/prompt.md'), 'utf8')
+  check('both bundled presets appear as read-only built-ins through the actual Host entry', () => {
+    for (const id of ['standard-efficient', 'codex-original']) {
+      assert.equal(store.getState().snapshot.presets.find((row) => row.id === id)?.ownership, 'builtin')
+      assert.ok(rows.has(id))
+    }
+    assert.equal(JSON.stringify(rows.get('standard')), standardBefore)
+  })
+  for (const id of ['standard-efficient', 'codex-original']) {
+    const detail = await bundledApi.detail(id)
+    assert.equal(detail.editable, false)
+    const persona = detail.definition.plugins.find((row) => row.name === '@deepseek-ai/dsh-persona')
+    if (id === 'codex-original') assert.equal(persona.config.prefix, codexText)
+    const restored = structuredClone(detail.definition.plugins)
+    restored.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix = standardDefinition.plugins[0].config.prefix
+    assert.deepEqual(restored, standardDefinition.plugins)
+    assert.equal(detail.definition.order, standardDefinition.order)
+    await assert.rejects(() => bundledApi.remove({ id }), /不是本插件管理的预设/)
+  }
+  check('bundled documents preserve the complete Standard tree and exact local Codex text', () => assert.equal(JSON.stringify(rows.get('standard')), standardBefore))
+  const bundledCopy = await bundledApi.clone({ sourceId: 'codex-original', newId: 'codex-user-copy' })
+  check('a bundled preset forks into an independently editable user preset', () => assert.equal(bundledCopy.ok, true))
+  assert.equal((await bundledApi.detail('codex-user-copy')).editable, true)
+  await bundledApi.remove({ id: 'codex-user-copy' })
 
   assert.equal(await store.clone({ sourceId: 'standard', newId: 'check-copy', name: '验证复制' }), true)
   await store.openEditor('check-copy', 'yaml')
@@ -457,6 +501,18 @@ try {
     assert.equal(client.get('remote.presetManager'), undefined)
   })
   await hostPlugin.dispose()
+  check('Host disposal withdraws bundled presets and preserves Standard', () => {
+    assert.equal(rows.has('standard-efficient'), false)
+    assert.equal(rows.has('codex-original'), false)
+    assert.equal(JSON.stringify(rows.get('standard')), standardBefore)
+  })
+  const replacementHost = await host.plugin(hostEntry)
+  await host.get('presetManager').snapshot()
+  check('Host reactivation registers both bundled presets without duplicate IDs', () => {
+    assert.ok(rows.has('standard-efficient'))
+    assert.ok(rows.has('codex-original'))
+  })
+  await replacementHost.dispose()
   console.log(`\n${passed}/${passed} complete Client/Host entry checks passed (${dist})`)
 } finally {
   releaseDetail?.()
