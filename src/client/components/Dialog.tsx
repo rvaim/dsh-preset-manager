@@ -5,7 +5,7 @@ export interface DialogProps {
   title: string
   closeLabel: string
   busy?: boolean
-  variant?: 'default' | 'editor' | 'confirm'
+  variant?: 'default' | 'editor' | 'confirm' | 'import'
   onClose(): void
   children?: React.ReactNode
   footer?: React.ReactNode
@@ -26,7 +26,7 @@ export function Dialog(props: DialogProps): React.ReactElement {
     }
   }, [])
   return React.createElement('dialog', {
-    ref, className: `dshpm-dialog${props.variant === 'editor' ? ' dshpm-dialog--editor' : props.variant === 'confirm' ? ' dshpm-dialog--confirm' : ''}`, 'aria-labelledby': titleId,
+    ref, className: `dshpm-dialog${props.variant && props.variant !== 'default' ? ` dshpm-dialog--${props.variant}` : ''}`, 'aria-labelledby': titleId,
     onKeyDown: (event: React.KeyboardEvent<HTMLDialogElement>) => {
       if (event.key === 'Escape') event.stopPropagation()
     },

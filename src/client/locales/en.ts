@@ -46,7 +46,13 @@ export const en: Record<string, unknown> = {
     "healthy": "Healthy",
     "broken": "Activation failed",
     "unchecked": "Unchecked",
-    "default": "DSH default"
+    "default": "DSH default",
+    "disabled": "Disabled"
+  },
+  "toggle": {
+    "enableLabel": "Enable {name}",
+    "disableLabel": "Disable {name}",
+    "defaultHint": "Choose another DSH default preset before disabling this one."
   },
   "ownership": {
     "managed": "This plugin",
@@ -55,7 +61,7 @@ export const en: Record<string, unknown> = {
   },
   "list": {
     "heading": "Presets",
-    "summary": "{total} presets, {managed} managed by this plugin",
+    "summary": "{total} presets · {managed} custom",
     "emptyTitle": "No custom presets yet",
     "emptyBody": "Copy an existing preset as a starting point, or import a shared configuration. Built-in presets are never modified.",
     "emptyActionClone": "Copy a preset",
@@ -196,9 +202,10 @@ export const en: Record<string, unknown> = {
     "nothingApplied": "Preview writes no file and registers no preset.",
     "previewHeading": "Import preview",
     "idConflictTitle": "ID already in use",
-    "idConflictBody": "That ID exists. Use the suggested ID below or another free one.",
-    "newIdLabel": "Use this ID instead",
+    "idConflictBody": "This ID is already in use. Edit the preset id directly in the YAML above.",
+    "newIdLabel": "Preset ID",
     "risksTitle": "Risks and compatibility",
+    "diagnosticsSummary": "Risks and notes · {count}",
     "warningsTitle": "Notes",
     "errorsTitle": "Cannot import",
     "compositionHeading": "Composition that would be imported",
@@ -251,6 +258,10 @@ export const en: Record<string, unknown> = {
     "codex-original": {
       "name": "Codex Original",
       "description": "An experimental preset using the unmodified public base prompt from OpenAI Codex."
+    },
+    "redteam-mode": {
+      "name": "Red Team Mode",
+      "description": "Red-team exercise mode: intent normalization, 25 domain-routing rules, deterministic output slots, and output self-checks."
     },
     "standard": {
       "name": "Standard mode",

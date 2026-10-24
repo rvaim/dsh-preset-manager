@@ -48,6 +48,7 @@ const face = createRemoteFace({
   cloneSources: async () => [],
   detail: async (id) => ({ id }),
   history: async () => [],
+  setEnabled: async (request) => { calls.push(['setEnabled', request]); return mutation },
   clone: async (request) => { calls.push(['clone', request]); return mutation },
   save: async () => mutation,
   remove: async (request) => { calls.push(['remove', request]); return mutation },
@@ -138,6 +139,15 @@ try {
   const api = createApi(remote)
   const received = await api.snapshot()
   check('snapshot completes a Client → Host → Client RPC', () => assert.deepEqual(received, snapshot))
+  assert.deepEqual(await api.setEnabled({ id: 'fixture', enabled: false }), mutation)
+  check('preset toggle transports the exact ID and disabled state to the Host', () => {
+    assert.deepEqual(calls.at(-1), ['setEnabled', { id: 'fixture', enabled: false }])
+  })
+  const invalidToggle = await remote.setEnabled('fixture', 'false')
+  check('preset toggle rejects a string in place of the enablement boolean', () => {
+    assert.equal(invalidToggle.ok, false)
+    assert.equal(invalidToggle.error.code, 'gateway/input-invalid')
+  })
   const removed = await api.remove({ id: 'fixture', acknowledgedDefaultRisk: true })
   check('UI deletion reaches the existing Host remove use case', () => {
     assert.deepEqual(removed, mutation)

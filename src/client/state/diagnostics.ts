@@ -15,7 +15,7 @@ interface InspectProvider {
       readonly outputSchema: object
     }[]
   }
-  query(method: string): object
+  query(method: string, input?: { id?: string }): object
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -56,8 +56,13 @@ export function registerDiagnostics(
           },
         }, {
           name: 'getAppearance',
-          description: 'Read current theme colors and this plugin’s rendered buttons and card descriptions without changing theme or UI.',
+          description: 'Read current theme colors, preset row dimensions, enablement switches and buttons without changing theme or UI.',
           inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+          outputSchema: { type: 'object' },
+        }, {
+          name: 'getPresetStatus',
+          description: 'Read one preset’s current registration, health, ownership, composition size and prompt SHA-256 without modifying it or exposing prompt text.',
+          inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
           outputSchema: { type: 'object' },
         }, {
           name: 'getDocumentModel',
@@ -66,7 +71,24 @@ export function registerDiagnostics(
           outputSchema: { type: 'object' },
         }],
       },
-      query(method) {
+      query(method, input) {
+        if (method === 'getPresetStatus') {
+          const id = input?.id
+          if (!id) throw new TypeError('Preset id is required')
+          return Promise.all([store.apiForPanel.snapshot(), store.apiForPanel.detail(id)]).then(async ([snapshot, detail]) => {
+            const summary = snapshot.presets.find((preset) => preset.id === id)
+            const entries = listCompositionRows(detail.definition)
+            const config = entries.find((entry) => entry.row.name === '@deepseek-ai/dsh-persona')?.row.config as { prefix?: unknown } | undefined
+            const bytes = new TextEncoder().encode(typeof config?.prefix === 'string' ? config.prefix : '')
+            const digest = await crypto.subtle.digest('SHA-256', bytes)
+            return { version, ...summary, id, order: detail.definition.order, editable: detail.editable,
+              rootRows: detail.definition.plugins.length, totalRows: entries.length,
+              groups: entries.filter((entry) => entry.row.group === true).length,
+              prefixBytes: bytes.length,
+              prefixSha256: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''),
+            }
+          })
+        }
         if (method === 'getDocumentModel') {
           const presets = store.getState().snapshot?.presets ?? []
           const preset = presets.find((entry) => entry.ownership === 'builtin') ?? presets[0]
@@ -103,16 +125,17 @@ export function registerDiagnostics(
               readOnly: editor.querySelector('.cm-content')?.getAttribute('aria-readonly'),
             })),
             treeGuides: page?.querySelectorAll('.dshpm-tree-guide, .dshpm-tree-stem, .dshpm-tree-connector').length ?? 0,
-            gridColumns: page?.querySelector('.dshpm-preset-grid') ? getComputedStyle(page.querySelector('.dshpm-preset-grid')!).gridTemplateColumns : null,
+            listLayout: page?.querySelector('.dshpm-preset-list') ? getComputedStyle(page.querySelector('.dshpm-preset-list')!).display : null,
             openDialogs: Array.from(page?.querySelectorAll('.dshpm-dialog[open] .dshpm-dialog-title') ?? []).map((title) => title.textContent),
             buttons: Array.from(page?.querySelectorAll<HTMLButtonElement>('.dshpm-btn') ?? []).slice(0, 20).map((button) => {
               const style = getComputedStyle(button)
               return { label: button.textContent?.trim() || button.getAttribute('aria-label'),
                 foreground: style.color, background: style.backgroundColor, disabled: button.disabled }
             }),
-            cards: Array.from(page?.querySelectorAll<HTMLElement>('.dshpm-preset-card') ?? []).map((card) => ({
-              id: card.dataset.presetId,
-              description: card.querySelector('.dshpm-preset-description')?.textContent,
+            rows: Array.from(page?.querySelectorAll<HTMLElement>('.dshpm-preset-row') ?? []).map((row) => ({
+              id: row.dataset.presetId, height: row.getBoundingClientRect().height,
+              description: row.querySelector('.dshpm-preset-description')?.textContent,
+              enabled: row.querySelector('[role=switch]')?.getAttribute('aria-checked') ?? null,
             })),
           }
         }

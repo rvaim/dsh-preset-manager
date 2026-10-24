@@ -6,7 +6,7 @@
 [![license](https://img.shields.io/npm/l/@rvaim/dsh-preset-manager.svg)](./LICENSE)
 
 - 包名：`@rvaim/dsh-preset-manager`
-- 版本：`0.3.0`
+- 版本：`0.5.0`
 - 中文名：Agent 预设管理器
 - 设置页：DSH Web「设置 → 预设管理」
 - 数据目录：`$DSH_HOME/dsh-preset-manager/`
@@ -16,17 +16,20 @@
 
 ## 插件自带预设
 
-启用插件后提供两个只读预设，可在预设管理器中查看、复制配置或派生为可编辑的自定义预设。
+启用插件后提供三个只读预设，可在预设管理器中查看、复制配置或派生为可编辑的自定义预设。
 
 | ID | 中文名称 | English name | 描述 |
 |---|---|---|---|
 | `standard-efficient` | 标准增强 | Standard Efficient | 基于 DSH Standard 的自适应高效编码 Agent |
 | `codex-original` | Codex 原版 | Codex Original | 使用 OpenAI Codex 官方公开基础提示词原文的实验预设 |
+| `redteam-mode` | 红队模式 | Red Team Mode | 红队对抗演练模式 —— 意图归一化 + 25 条域规则路由 + 确定性输出槽 + 破甲自检 |
 
-两个预设都在插件每次启用时，通过宿主公开的 `agentPresets.readDocument('standard')` 读取当前 Standard 的完整实际插件组合，并保留注册表中的排序元数据。除上述身份信息及 Persona 的 `prefix` 外，插件树、工具、嵌套分组、条件表达式、隔离配置、Persona 的 suffix/complete/includeRuntimeContext 和未知字段均保持原样。启用后不会持续改写已注册定义；重新启用时才重新读取 Standard。已有同名用户预设或第三方预设会保留，并报告冲突。
+标准增强和 Codex 原版在插件每次启用时，通过宿主公开的 `agentPresets.readDocument('standard')` 读取当前 Standard 的完整实际插件组合，并保留注册表中的排序元数据。除上述身份信息及 Persona 的 `prefix` 外，插件树、工具、嵌套分组、条件表达式、隔离配置、Persona 的 suffix/complete/includeRuntimeContext 和未知字段均保持原样。启用后不会持续改写已注册定义；重新启用时才重新读取 Standard。已有同名用户预设或第三方预设会保留，并报告冲突。
 
-自带预设不写入用户的 `presets/` 或修订历史；清除用户数据不会删除它们，停用插件会撤销本插件注册的两个预设。Standard 缺失、异常或其 Persona 结构无法安全识别时，会显示诊断，不回退到一份猜测的精简配置。管理器按当前语言显示中英文名称；宿主注册表使用上述中文名称。
+自带预设不写入用户的 `presets/` 或修订历史；清除用户数据不会删除它们，停用插件会撤销本插件持有的全部自带预设注册。Standard 缺失、异常或其 Persona 结构无法安全识别时，会显示诊断，不回退到一份猜测的精简配置。管理器按当前语言显示中英文名称；宿主注册表使用上述中文名称。
 
+- 红队模式使用本地 [完整预设 YAML](resources/redteam-mode/preset.yml)，保留 `order: 10`、22 个根条目及三个嵌套分组中的完整插件配置；直接读取本地定义，不从 Standard 合并或改写。
+- 红队模式的 Persona 是**纯加法**：用户原文 [user-original.md](resources/redteam-mode/user-original.md) 逐字节保留，只在其第一个章节前插入 [adaptive-execution.md](resources/redteam-mode/adaptive-execution.md)（轻量 / 标准 / 深度 / 关键四档 + 五步判断链 + 收尾门槛）。加载时会核对：把插入段删掉必须逐字节还原用户原文，任何一处改动都会被拒绝注册。[完整性记录](resources/redteam-mode/provenance.json) 保存三份资源的字节数与 SHA-256。
 - 标准增强使用 [完整静态提示词](resources/standard-efficient/prefix.md)，仅保留用户指定的 `{{model}}` 模板变量。
 - Codex 原版使用 [OpenAI 官方文件](https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/codex-rs/models-manager/prompt.md)的完整原文，固定 Git commit 为 `970111f6cb62cc02fe36a82ea7d71b37a2889c97`，SHA-256 为 `ac8ae107a0d72fe3476b430afb161ea4e67da2e446d778aefc44828160559807`。原始文件共 20,903 字节，未经总结、改写、翻译、工具名替换或添加前后文。
 - 原文及 [来源记录](resources/codex-original/provenance.json)、[Apache-2.0 许可证](resources/codex-original/LICENSE)、[上游 NOTICE](resources/codex-original/NOTICE)均随 npm 包提供。插件自身代码仍为 MIT；Codex 原文适用其上游许可。
@@ -35,6 +38,19 @@
 Codex 原版只替换 Persona Prefix，仍使用 DSH Standard 的工具、运行环境和其他系统提示段。它用于比较官方公开提示词的效果，不等同于复现完整 Codex CLI 的行为。
 
 `npm run verify` 包含 `verify:bundled`：实际生成 npm tarball、解包，比较原文字节与 SHA-256，并从解包后的 Host 模块验证断网时的本地资源读取。
+
+## 预设列表与启停
+
+预设以一行一项的横向列表展示：名称与 ID、完整用途说明、操作和启停开关保持对齐。
+
+- 插件自带预设，以及本插件创建、派生或导入的自定义预设，都可以启用或停用。
+- 停用只撤销运行时注册，配置和历史仍保留，条目仍可查看、复制；自定义预设仍可编辑。
+- 编辑或恢复已停用的预设不会自动启用它；新建、派生和导入的预设默认启用。
+- 启停状态保存在插件自己的数据目录，重启 DSH 或重新启用插件后仍生效。
+- 当前 DSH 默认预设需要先在原生设置中切换为其他默认项，之后才能停用。
+- DSH 官方预设及第三方预设由各自的提供方管理，本列表不提供启停开关。
+
+自动化可通过 `preset_manager_set_enabled` 使用相同的启停服务，参数为预设 `id` 和布尔值 `enabled`。
 
 ## 1. 它解决了什么问题
 
@@ -65,7 +81,7 @@ DSH 的 Agent 预设原本只能在 Cordis 组合（`cordis.patch.yml` 或 Bundl
 | 重启自动恢复 | 第二个进程从同一目录恢复，且**只注册一次** | ✅ |
 | 停用不删数据 | 停用后 `presets/`、`history/`、`metadata.json` 全部保留 | ✅ |
 
-自动化测试：**160 个单元/集成测试全部通过**，覆盖动态注册生命周期、持久化、领域规则、导入导出、非侵入性、注册管理器与插件自带预设；另有 **15 项真实 Gateway/插件注入检查**和 **41 项完整 Client/Host 入口检查**。
+自动化测试：**210 个单元/集成测试全部通过**，覆盖动态注册生命周期、持久化、领域规则、导入导出、非侵入性、注册管理器与插件自带预设；另有 **17 项真实 Gateway/插件注入检查**和 **57 项完整 Client/Host 入口检查**。
 
 ---
 
@@ -268,7 +284,7 @@ dsh-preset-manager/
 │   │   ├── features/…             # list / clone / persona-editor /
 │   │   │                          #   history / export / import
 │   │   └── locales/
-│   └── tests/unit/                # 96 个测试 + 假 Registry
+│   └── tests/unit/                # 20 个测试文件 + 假 Registry
 └── scripts/
     ├── build.mjs                  # Host: tsc  → ESM
     ├── run-tests.mjs              # 编译并运行测试
@@ -470,7 +486,7 @@ plugin_manager install_bundle  target=C:\path\to\dsh-preset-manager
 npm install
 npm run typecheck     # 全量类型检查（含 client）
 npm run build         # Host → dist/host (ESM)，Client → dist/client.js
-npm test              # 编译并运行 160 个测试
+npm test              # 编译并运行 210 个测试
 npm run verify        # 类型检查、测试、构建、Gateway、完整入口与打包资源校验
 
 node scripts/e2e-verify.mjs                    # 完整生命周期

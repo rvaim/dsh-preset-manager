@@ -6,6 +6,7 @@
  */
 import type { PresetRepository } from '../ports/preset-repository.js'
 import type { PresetSource } from '../ports/preset-source.js'
+import type { BundledPresetRuntime } from '../ports/bundled-presets.js'
 import type { RegistrationManager } from '../lifecycle/registration-manager.js'
 import type { PresetDefinition, ValidationIssue } from '../../shared/types.js'
 import { isLoaderBuiltin, isRelativeSpecifier } from '../../domain/preset-validator.js'
@@ -13,15 +14,26 @@ import { isLoaderBuiltin, isRelativeSpecifier } from '../../domain/preset-valida
 export interface ApplicationDeps {
   readonly repository: PresetRepository
   readonly source: PresetSource
+  /** Read/lifecycle view of presets shipped by this plugin. */
+  readonly bundled: BundledPresetRuntime
   readonly registrations: RegistrationManager
   /** Whether a module specifier resolves in this installation. */
   readonly resolveModule: (moduleName: string) => boolean
   /** The preset DSH selects for a new session. */
   readonly defaultPresetId: () => Promise<string | undefined>
-  /** Whether an id is declared by a shipped bundle. */
-  readonly isShippedPreset: (id: string) => boolean
   readonly warn: (message: string) => void
   readonly now: () => number
+}
+
+/**
+ * Whether an id is owned by this plugin's bundled preset mechanism.
+ *
+ * Ownership must come from this build's bundle list, never a guessed naming
+ * convention: a third-party preset is still foreign while a bundled preset is
+ * disabled and absent from the runtime roster.
+ */
+export function isBundledPreset(deps: ApplicationDeps, id: string): boolean {
+  return deps.bundled.ids.includes(id)
 }
 
 /** How a preset's ownership is described in a conflict message. */
@@ -46,6 +58,11 @@ export async function ownershipMap(deps: ApplicationDeps): Promise<Map<string, s
   for (const [id, ownership] of known) {
     if (map.has(id)) continue
     map.set(id, OWNER_LABEL[ownership] ?? '第三方插件')
+  }
+  // Disabled bundled ids are absent from the runtime but stay reserved. An
+  // existing foreign owner is already in `known` and must not be relabelled.
+  for (const id of deps.bundled.ids) {
+    if (!map.has(id) && !deps.bundled.conflicted(id)) map.set(id, OWNER_LABEL.builtin)
   }
   return map
 }

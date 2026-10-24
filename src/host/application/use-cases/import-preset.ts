@@ -21,16 +21,16 @@ import {
   previewImport,
   type ImportSource,
 } from '../../../sharing/preset-importer.js'
-import type { ApplicationDeps } from '../deps.js'
+import { isBundledPreset, type ApplicationDeps } from '../deps.js'
 import { applyDefinition } from './apply-definition.js'
 
 export interface PreviewRequest {
   readonly text: string
   readonly source: ImportSource
+  readonly id?: string
 }
 
 export interface ImportRequest extends PreviewRequest {
-  readonly id?: string
   readonly name?: string
   readonly acknowledgedRisks: boolean
 }
@@ -58,6 +58,11 @@ async function knownPresets(
   const runtime = await deps.source.knownIds().catch(() => new Map())
   for (const [id, ownership] of runtime) {
     if (!seen.has(id)) seen.set(id, ownership)
+  }
+  // A bundled id stays reserved even if the runtime reader is temporarily
+  // unavailable; this prevents a disabled built-in from being imported over.
+  for (const id of deps.bundled.ids) {
+    if (!seen.has(id) && isBundledPreset(deps, id)) seen.set(id, 'builtin')
   }
   return [...seen.entries()].map(([id, ownership]) => ({ id, ownership }))
 }

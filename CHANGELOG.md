@@ -7,6 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-25
+
+### Added
+
+- Ship `redteam-mode` / 红队模式 as a complete local share document, including
+  its independent plugin tree, nested scopes, platform conditions, disabled
+  tools and order 10. Preserve that composition instead of deriving it from
+  Standard.
+- Add Standard Efficient's judgment model to the red-team Persona by addition
+  only: an effort ladder (light / standard / deep / critical) with a five-step
+  decision chain and a stop-when-delivered threshold, inserted before the first
+  original section. The user-supplied Persona stays byte-identical; loading
+  fails unless removing the inserted section reproduces it exactly.
+- Reuse bundled-preset read-only access, copy/derive operations and persisted
+  enablement. Record and verify document and Persona SHA-256 digests.
+- Add bounded read-only per-preset diagnostics for registration, activation
+  health, composition counts and the current Persona digest.
+
+### Tests
+
+- Verify the complete bundled YAML, offline loading, exact runtime definitions,
+  disabled/read/copy/re-enable lifecycle and actual tarball resources.
+
+## [0.4.0] - 2026-10-25
+
+### Added
+
+- Persist enable/disable choices for plugin-provided and managed presets.
+  Disabled definitions remain visible, readable, copyable and editable where
+  owned; editing or restoring them preserves their disabled state.
+- Use the same enablement operation from row switches and the deferred
+  `preset_manager_set_enabled` agent tool. Preserve the current DSH default
+  until the user chooses a replacement in DSH settings.
+
+### Changed
+
+- Replace the two-column cards with compact, one-preset-per-row lists: aligned
+  identity, complete description, actions and enablement controls, with responsive
+  wrapping inside each row. Keep the list mounted behind independent dialogs.
+
+### Tests
+
+- Exercise toggle ownership, persistence and restoration, disabled-definition
+  editing and copying, request ordering, transport validation and row controls.
+
+## [0.3.4] - 2026-10-24
+
+### Changed
+
+- Replace large import warning panels with visible inline blockers and a single
+  collapsed risk/note summary. Native disclosure preserves complete details and
+  keyboard operation without occupying the initial viewport.
+- Group preset metadata, remove redundant format chrome, put source actions on
+  one row and allocate the available dialog height to the sole YAML editor.
+- Preserve fixed footer actions and responsive overflow for small windows or
+  expanded diagnostic details.
+
+### Tests
+
+- Cover collapsed-by-default diagnostics, complete message preservation, visible
+  blockers, empty states and suppression of stale feedback during validation.
+
+## [0.3.3] - 2026-10-24
+
+### Fixed
+
+- Use the original YAML editor as the only import editing and preview surface.
+  Remove the separate ID field and duplicate read-only composition editor.
+- Resolve conflicts by editing the preset ID in that YAML. Revalidate edited
+  text after preview, clear stale diagnostics immediately and confirm the exact
+  text that was validated, without a separate identity override.
+
+## [0.3.2] - 2026-10-24
+
+### Fixed
+
+- Clear import previews and notices on close, reopen and source replacement;
+  ignore late preview responses after cancellation or newer requests.
+- Show ID validation once beside one populated Preset ID input. Revalidate the
+  edited ID through the Host without blocking continued typing, and remove the
+  duplicate conflict error from the import validator.
+- Confirm only the current successfully previewed text and identity. Reset the
+  acknowledgement after edits and block confirmation while validation is pending.
+
+### Tests
+
+- Cover import cancellation, request ordering, stale approvals, ID replacement
+  and retry, plus actual Gateway preview/confirm of a renamed bundled preset.
+
+## [0.3.1] - 2026-10-24
+
+### Fixed
+
+- Keep import Cancel, Preview and Confirm actions in the dialog footer, outside
+  the scrolling content. Remove the nested panel that clipped its own footer
+  when long import previews exceeded the dialog height.
+- Use the shared CodeMirror YAML editor for pasted/file input and read-only
+  composition previews, including syntax highlighting, line numbers, folding
+  and indentation guides. Bound both code regions so long documents scroll
+  inside the editor, and preserve the empty input hint.
+
 ## [0.3.0] - 2026-10-24
 
 ### Added

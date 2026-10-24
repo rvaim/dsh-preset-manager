@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "source": "User-supplied full preset YAML; Persona kept verbatim with one prepended section",
+  "id": "redteam-mode",
+  "document": {
+    "file": "preset.yml",
+    "bytes": 37496,
+    "sha256": "931a387038117dadf28530d887398651b392aa9bbaa995a17427facb1748c845"
+  },
+  "personaPrefix": {
+    "bytes": 28195,
+    "sha256": "910c148c6426d3c924b9c8c52474a290c492ca15ab180405a5e52ec8a5efa8ec"
+  },
+  "rootRows": 22,
+  "userOriginal": {
+    "file": "redteam-mode/user-original.md",
+    "bytes": 26810,
+    "sha256": "97738ead15f648c6f4118df544bd664e6c00be1d0935680d0d9c8d874714680e",
+    "note": "Verbatim Persona prefix as supplied. Deleting the added section from the shipped Persona must reproduce this file byte for byte."
+  },
+  "personaAddition": {
+    "file": "redteam-mode/adaptive-execution.md",
+    "bytes": 1385,
+    "sha256": "16a9a1310ff1c6f7b8f7867320bc29659edbcf564974039c886ba4e00c26f5a3",
+    "note": "The only text added to the user Persona: one adaptive-execution section inserted before \"## 身份\"."
+  }
+}

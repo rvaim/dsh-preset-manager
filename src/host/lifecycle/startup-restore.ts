@@ -72,6 +72,17 @@ export async function restoreStoredPresets(
   const foreign = options.foreignIds === undefined
     ? new Map<string, string>()
     : await options.foreignIds().catch(() => new Map<string, string>())
+  let disabled: ReadonlySet<string>
+  try {
+    disabled = await repository.disabledPresetIds()
+  } catch (error) {
+    diagnostics.push({
+      code: 'startup.enablement-unreadable',
+      message: '无法读取预设启停状态，本次启动没有恢复任何自定义预设',
+      detail: error instanceof Error ? error.message : String(error),
+    })
+    return { restored: [], registrations: [], diagnostics }
+  }
 
   const accepted: { definition: PresetDefinition; revision: string }[] = []
   for (const entry of stored) {
@@ -81,9 +92,11 @@ export async function restoreStoredPresets(
       continue
     }
     diagnostics.push(...report.warnings)
-    accepted.push({ definition: entry.definition, revision: entry.revision })
+    if (!disabled.has(entry.definition.id)) accepted.push({ definition: entry.definition, revision: entry.revision })
   }
 
+  // Disabled records are not desired registrations, but they still need a
+  // record so the UI can explain why a previously broken preset is off.
   const registrationsResult = await registrations.reconcile(accepted)
 
   for (const record of registrationsResult) {

@@ -46,7 +46,13 @@ export const zh: Record<string, unknown> = {
     "healthy": "运行正常",
     "broken": "激活异常",
     "unchecked": "未检查",
-    "default": "DSH 默认"
+    "default": "DSH 默认",
+    "disabled": "已停用"
+  },
+  "toggle": {
+    "enableLabel": "启用「{name}」",
+    "disableLabel": "停用「{name}」",
+    "defaultHint": "请先在 DSH 设置中切换默认预设，再停用此项。"
   },
   "ownership": {
     "managed": "本插件",
@@ -55,7 +61,7 @@ export const zh: Record<string, unknown> = {
   },
   "list": {
     "heading": "预设列表",
-    "summary": "共 {total} 个预设，其中 {managed} 个由本插件管理",
+    "summary": "{total} 个预设 · {managed} 个自定义",
     "emptyTitle": "还没有自定义预设",
     "emptyBody": "复制一个现有预设作为起点，或导入别人分享的配置。内置预设不会被修改。",
     "emptyActionClone": "复制一个预设",
@@ -196,9 +202,10 @@ export const zh: Record<string, unknown> = {
     "nothingApplied": "预览不会写入文件，也不会注册任何预设。",
     "previewHeading": "导入预览",
     "idConflictTitle": "ID 已被占用",
-    "idConflictBody": "该 ID 已存在。请改用下面的建议 ID 或其他未被占用的 ID。",
-    "newIdLabel": "改用这个 ID",
+    "idConflictBody": "该 ID 已存在，请直接修改上方 YAML 中的预设 id。",
+    "newIdLabel": "预设 ID",
     "risksTitle": "风险与兼容性",
+    "diagnosticsSummary": "风险与提醒 · {count} 项",
     "warningsTitle": "提醒",
     "errorsTitle": "无法导入",
     "compositionHeading": "将导入的插件组合",
@@ -251,6 +258,10 @@ export const zh: Record<string, unknown> = {
     "codex-original": {
       "name": "Codex 原版",
       "description": "使用 OpenAI Codex 官方公开基础提示词原文的实验预设"
+    },
+    "redteam-mode": {
+      "name": "红队模式",
+      "description": "红队对抗演练模式 —— 意图归一化 + 25 条域规则路由 + 确定性输出槽 + 破甲自检"
     },
     "standard": {
       "name": "标准模式",

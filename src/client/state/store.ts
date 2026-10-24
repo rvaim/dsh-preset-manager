@@ -33,7 +33,7 @@ import { dumpPresetDocument } from '../../domain/preset-model.js'
 export type EditorMode = 'persona' | 'plugins' | 'yaml'
 
 export interface Notice {
-  readonly localAction?: { readonly kind: 'fork' | 'copy'; readonly id: string }
+  readonly localAction?: { readonly kind: 'fork' | 'copy' | 'toggle'; readonly id: string }
   readonly level: 'info' | 'success' | 'warning' | 'error'
   readonly title?: string
   readonly message: string
@@ -71,7 +71,9 @@ export interface PageState {
   readonly validation: ValidationReport | undefined
   readonly diff: PresetDiff | undefined
   readonly preview: ImportPreview | undefined
+  readonly previewingImport: boolean
   readonly busy: boolean
+  readonly togglingId: string | undefined
   readonly notice: Notice | undefined
 }
 
@@ -91,7 +93,9 @@ const INITIAL: PageState = {
   validation: undefined,
   diff: undefined,
   preview: undefined,
+  previewingImport: false,
   busy: false,
+  togglingId: undefined,
   notice: undefined,
 }
 
@@ -111,6 +115,8 @@ export class PresetManagerStore {
   private pageCount = 0
   private viewRequest = 0
   private yamlRequest = 0
+  private importRequest = 0
+  private importApproval: { text: string; source: 'share' | 'yaml-file'; id: string } | undefined
   private initialYaml = ''
 
   get hasUnsavedChanges(): boolean {
@@ -166,6 +172,8 @@ export class PresetManagerStore {
    * reason so the page can show it verbatim rather than a generic failure.
    */
   attachMount(state: MountState): void {
+    this.set({ busy: false, togglingId: undefined })
+    this.clearPreview()
     if (state.status !== 'ready' || state.service === undefined) {
       this.apiProvider = undefined
       this.viewRequest += 1
@@ -410,6 +418,29 @@ export class PresetManagerStore {
 
   // -------------------------------------------------------------- commands
 
+  /** Toggle only the selected preset and report failures beside its row. */
+  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    if (this.state.busy || this.state.mount.status !== 'ready' || !this.apiProvider) return false
+    const api = this.api
+    const localAction = { kind: 'toggle' as const, id }
+    this.set({ busy: true, togglingId: id, notice: undefined })
+    try {
+      const result = await api.setEnabled({ id, enabled })
+      if (this.apiProvider?.() !== api) return false
+      if (!result.ok || !result.applied) throw new Error(result.errors.map(formatIssue).join('\n') || '启停状态未能更新，请重试。')
+      const refreshed = await this.refresh()
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, togglingId: undefined,
+        notice: refreshed ? undefined : { localAction, level: 'warning', message: '启停状态已保存，但列表刷新失败，请点击刷新。' },
+      })
+      return true
+    } catch (error) {
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, togglingId: undefined, notice: { ...describeFailure(error), localAction } })
+      return false
+    }
+  }
+
   /** Copy the selected card without a redundant source/ID form. */
   async duplicate(source: PresetSummary, copySuffix: string): Promise<boolean> {
     if (this.state.busy || this.state.mount.status !== 'ready') return false
@@ -527,15 +558,23 @@ export class PresetManagerStore {
 
   // --------------------------------------------------------------- import
 
-  /** Parse share text into a preview; nothing is applied yet. */
-  async previewImport(text: string, source: 'share' | 'yaml-file'): Promise<boolean> {
-    this.set({ busy: true, notice: undefined, preview: undefined })
+  /** Validate the current import identity without freezing the editable input. */
+  async previewImport(text: string, source: 'share' | 'yaml-file', id?: string): Promise<boolean> {
+    if (this.state.busy) return false
+    const request = ++this.importRequest
+    this.importApproval = undefined
+    this.set({ previewingImport: true, notice: undefined })
+    let api: PresetManagerApi | undefined
     try {
-      const preview = await this.api.previewImport({ text, source })
-      this.set({ busy: false, preview })
+      api = this.api
+      const preview = await api.previewImport({ text, source, ...(id === undefined ? {} : { id }) })
+      if (request !== this.importRequest || this.apiProvider?.() !== api) return false
+      this.importApproval = { text, source, id: preview.definition.id }
+      this.set({ previewingImport: false, preview })
       return true
     } catch (error) {
-      this.set({ busy: false, notice: describeFailure(error) })
+      if (request !== this.importRequest || (api !== undefined && this.apiProvider?.() !== api)) return false
+      this.set({ previewingImport: false, preview: undefined, notice: describeFailure(error) })
       return false
     }
   }
@@ -548,21 +587,37 @@ export class PresetManagerStore {
     name?: string
     acknowledgedRisks: boolean
   }): Promise<boolean> {
+    const approved = this.importApproval
+    const preview = this.state.preview
+    if (this.state.busy || this.state.previewingImport || !preview?.validation.ok || !approved ||
+      options.text !== approved.text || options.source !== approved.source ||
+      (options.id ?? preview.definition.id) !== approved.id ||
+      (options.name !== undefined && options.name !== preview.definition.name) || !options.acknowledgedRisks) return false
+    const api = this.api
+    const request = this.importRequest
     this.set({ busy: true, notice: undefined })
     try {
-      await this.api.importPreset(options)
+      await api.importPreset(options)
+      if (this.apiProvider?.() !== api) return false
+      if (request !== this.importRequest) { this.set({ busy: false }); return false }
       await this.refresh()
-      this.set({ busy: false, preview: undefined })
+      if (this.apiProvider?.() !== api) return false
+      if (request !== this.importRequest) { this.set({ busy: false }); return false }
+      this.importApproval = undefined
+      this.set({ busy: false, preview: undefined, previewingImport: false })
       this.notice({ level: 'success', message: '预设已导入并注册' })
       return true
     } catch (error) {
-      this.set({ busy: false, notice: describeFailure(error) })
+      if (this.apiProvider?.() !== api) return false
+      this.set({ busy: false, ...(request === this.importRequest ? { notice: describeFailure(error) } : {}) })
       return false
     }
   }
 
   clearPreview(): void {
-    this.set({ preview: undefined })
+    this.importRequest += 1
+    this.importApproval = undefined
+    this.set({ preview: undefined, previewingImport: false, notice: undefined })
   }
 
   dismissNotice(): void {

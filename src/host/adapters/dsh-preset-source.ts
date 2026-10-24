@@ -18,6 +18,7 @@ import type {
 } from '../../shared/types.js'
 import { countPlugins, parsePluginRows } from '../../domain/preset-model.js'
 import type { PresetSource, SourcePreset } from '../ports/preset-source.js'
+import type { BundledPresetSource } from '../ports/bundled-presets.js'
 
 /**
  * The registry surface this adapter needs.
@@ -50,6 +51,8 @@ export interface DshPresetSourceOptions {
   readonly managedIds: { has(id: string): boolean }
   /** Whether an id is declared by a shipped bundle. */
   readonly isShippedPreset: (id: string) => boolean
+  /** Bundled definitions, including presets disabled from the runtime. */
+  readonly bundled?: BundledPresetSource
   /** The id DSH currently selects, resolved lazily to avoid a stale read. */
   readonly defaultId: () => Promise<string | undefined>
 }
@@ -58,12 +61,14 @@ export class DshPresetSource implements PresetSource {
   private readonly reader: AgentPresetDocumentReader
   private readonly managedIds: { has(id: string): boolean }
   private readonly isShippedPreset: (id: string) => boolean
+  private readonly bundled: BundledPresetSource | undefined
   private readonly defaultId: () => Promise<string | undefined>
 
   constructor(options: DshPresetSourceOptions) {
     this.reader = options.reader
     this.managedIds = options.managedIds
     this.isShippedPreset = options.isShippedPreset
+    this.bundled = options.bundled
     this.defaultId = options.defaultId
   }
 
@@ -78,6 +83,10 @@ export class DshPresetSource implements PresetSource {
         : this.isShippedPreset(row.id)
           ? 'builtin'
           : 'third-party'
+      const managed = this.managedIds.has(row.id)
+      const bundled = this.bundled !== undefined &&
+        this.bundled.ids.includes(row.id) &&
+        this.bundled.holds(row.id)
       return {
         id: row.id,
         ...(row.name === undefined ? {} : { name: row.name }),
@@ -91,11 +100,45 @@ export class DshPresetSource implements PresetSource {
         // The document is not read for the list: one list call must stay one
         // round trip per preset, and the count is not worth N parses.
         pluginCount: 0,
+        ...(managed || bundled ? { canToggle: true } : {}),
       } satisfies PresetSummary
     })
   }
 
   async read(id: string): Promise<SourcePreset | undefined> {
+    const bundledDefinition = this.bundled?.definition(id)
+    if (
+      bundledDefinition !== undefined &&
+      this.bundled !== undefined &&
+      !this.bundled.conflicted(id)
+    ) {
+      const runtimeRows = await this.reader.list().catch(() => [])
+      const runtimeRow = runtimeRows.find((row) => row.id === id)
+      if (runtimeRow === undefined || this.bundled.holds(id)) {
+        const summaries = await this.list().catch(() => [] as PresetSummary[])
+        const summary =
+          summaries.find((candidate) => candidate.id === id) ??
+          ({
+            id,
+            ...(bundledDefinition.name === undefined ? {} : { name: bundledDefinition.name }),
+            ...(bundledDefinition.description === undefined
+              ? {}
+              : { description: bundledDefinition.description }),
+            ...(bundledDefinition.order === undefined ? {} : { order: bundledDefinition.order }),
+            ownership: 'builtin',
+            canToggle: true,
+            registration: 'not-registered',
+            isDefault: false,
+            health: 'unchecked',
+            pluginCount: countPlugins(bundledDefinition.plugins),
+          } satisfies PresetSummary)
+        return {
+          summary: { ...summary, canToggle: true, pluginCount: countPlugins(bundledDefinition.plugins) },
+          definition: bundledDefinition,
+        }
+      }
+    }
+
     let document: Awaited<ReturnType<AgentPresetDocumentReader['readDocument']>>
     try {
       document = await this.reader.readDocument(id)
@@ -147,7 +190,7 @@ export class DshPresetSource implements PresetSource {
 
   async knownIds(): Promise<ReadonlyMap<string, 'managed' | 'builtin' | 'third-party'>> {
     const rows = await this.reader.list()
-    return new Map(
+    const known = new Map<string, 'managed' | 'builtin' | 'third-party'>(
       rows.map((row) => [
         row.id,
         this.managedIds.has(row.id)
@@ -157,5 +200,13 @@ export class DshPresetSource implements PresetSource {
             : ('third-party' as const),
       ]),
     )
+    // A disabled bundled preset is intentionally absent from the runtime, but
+    // its id stays reserved so an import cannot take it over while it is off.
+    for (const id of this.bundled?.ids ?? []) {
+      if (!known.has(id) && this.bundled !== undefined && !this.bundled.conflicted(id)) {
+        known.set(id, 'builtin')
+      }
+    }
+    return known
   }
 }

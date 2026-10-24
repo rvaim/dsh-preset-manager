@@ -66,6 +66,10 @@ export interface PresetSummary {
   readonly broken?: string
   /** Count of declared plugin rows, for an at-a-glance size signal. */
   readonly pluginCount: number
+  /** True when this plugin may enable or disable the preset. */
+  readonly canToggle?: boolean
+  /** False when the preset is intentionally withheld from the host selector. */
+  readonly enabled?: boolean
 }
 
 /** Full detail of one preset, including its complete plugin list. */

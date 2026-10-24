@@ -34,6 +34,7 @@ import { RegistrationManager } from './lifecycle/registration-manager.js'
 import { restoreStoredPresets } from './lifecycle/startup-restore.js'
 import { BundledPresetRegistration } from './bundled/registration.js'
 import { PresetManagerService } from './application/preset-manager-service.js'
+import { registerEnablementTool } from './enablement-tool.js'
 import type { ApplicationDeps } from './application/deps.js'
 import { createRemoteFace } from './remote/preset-manager-remote.js'
 import {
@@ -102,6 +103,7 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
   const bundled = new BundledPresetRegistration({
     registry,
     managedIds: managedIdRegistry,
+    isDisabled: (id) => repository.isPresetDisabled(id),
     waitUntilReady: () => loader?.await() ?? Promise.resolve(),
   })
 
@@ -123,21 +125,28 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
     reader: registry,
     managedIds: managedIdRegistry,
     isShippedPreset,
+    bundled,
     defaultId: async () => readDefaultPresetId(services),
   })
 
   const deps: ApplicationDeps = {
     repository,
     source,
+    bundled,
     registrations,
     resolveModule: createModuleResolver(services),
     defaultPresetId: async () => readDefaultPresetId(services),
-    isShippedPreset,
     warn: (message) => ctx.logger?.warn?.(message) ?? undefined,
     now: Date.now,
   }
 
   const service = new PresetManagerService(deps)
+  const beforeShutdown = (): void => {
+    // Close the gate synchronously, before any shutdown await. Bundled presets
+    // have their own lifecycle and must obey the same no-new-work rule.
+    service.markStopped()
+    registrations.beginShutdown()
+  }
 
   // Expose the Host face so the Remote descriptors can resolve it by key, and
   // so another Host plugin could call the same application service directly.
@@ -145,10 +154,11 @@ export async function apply(ctx: CordisContext, config: PresetManagerConfig = {}
   provide(services, PRESET_MANAGER_SERVICE, face)
 
   registerRemoteDescriptors(services, ctx)
+  registerEnablementTool(ctx, service)
 
   // ---- disposal: registered once, covering every registration this plugin owns
   ctx.effect(() => {
-    return () => shutdown(service, registrations, services, bundled)
+    return () => shutdown(service, registrations, services, bundled, beforeShutdown)
   }, 'dsh-preset-manager: preset registrations')
 
   // ---- startup restore
@@ -212,9 +222,9 @@ async function shutdown(
   registrations: RegistrationManager,
   services: HostServices,
   bundled: BundledPresetRegistration,
+  closeGate: () => void,
 ): Promise<void> {
-  service.markStopped()
-  registrations.beginShutdown()
+  closeGate()
   try {
     await service.quiesce()
   } catch {

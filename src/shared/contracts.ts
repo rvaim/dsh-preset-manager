@@ -36,6 +36,7 @@ export interface PresetManagerRemote {
   snapshot(): Promise<ManagerSnapshot>
   detail(id: string): Promise<PresetDetail>
   history(id: string): Promise<readonly HistoryEntry[]>
+  setEnabled(request: { id: string; enabled: boolean }): Promise<MutationResult>
 
   clone(request: {
     sourceId: string
@@ -86,6 +87,7 @@ export interface PresetManagerRemote {
     text: string
     /** How the text arrived, so the Host can apply the right parser. */
     source: 'share' | 'yaml-file'
+    id?: string
   }): Promise<ImportPreview>
 
   importPreset(request: {

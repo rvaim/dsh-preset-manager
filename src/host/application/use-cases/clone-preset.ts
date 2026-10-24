@@ -9,7 +9,7 @@ import type { MutationResult, PresetDefinition } from '../../../shared/types.js'
 import { ManagerError, ManagerErrorCode } from '../../../shared/errors.js'
 import { clonePreset } from '../../../domain/clone-preset.js'
 import { validatePresetId } from '../../../domain/preset-validator.js'
-import type { ApplicationDeps } from '../deps.js'
+import { isBundledPreset, type ApplicationDeps } from '../deps.js'
 import { applyDefinition } from './apply-definition.js'
 
 export interface CloneRequest {
@@ -28,6 +28,9 @@ export async function clonePresetUseCase(
   // sees the latest allocation, even when several pages share an old snapshot.
   const [known, stored] = await Promise.all([deps.source.knownIds(), deps.repository.list()])
   const ids = new Set([...known.keys(), ...stored.map((entry) => entry.definition.id)])
+  for (const id of deps.bundled.ids) {
+    if (isBundledPreset(deps, id)) ids.add(id)
+  }
   let newId = request.newId
   let name = request.name
   if (newId === undefined) {

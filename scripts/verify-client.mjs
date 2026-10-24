@@ -32,6 +32,7 @@ const temporaryBase = resolve(tmpdir())
 const temporaryHome = await mkdtemp(join(temporaryBase, 'dshpm-client-'))
 const interceptors = new Set()
 const providers = new Map()
+const registeredTools = new Map()
 const rows = new Map([
   ['standard', standardDefinition],
   ['ptc', { id: 'ptc', name: 'PTC', description: 'PTC fixture', plugins: [
@@ -122,6 +123,13 @@ try {
     const entry = { prefix, claims, dispatch }; interceptors.add(entry)
     return () => { interceptors.delete(entry) }
   } } })
+  host.provide('tools', {
+    register(definition) {
+      assert.equal(registeredTools.has(definition.name), false)
+      registeredTools.set(definition.name, definition)
+      return () => { registeredTools.delete(definition.name) }
+    },
+  })
   host.provide('dshHomePath', () => temporaryHome)
   host.provide('agentPresets', registry)
   let releaseHostTree
@@ -202,36 +210,138 @@ try {
   check('read-only diagnostics reflect the actual page store', () => {
     assert.equal(status.mountStatus, 'ready')
     assert.equal(status.loadStatus, 'ready')
-    assert.equal(status.presetCount, 4)
+    assert.equal(status.presetCount, 5)
     assert.doesNotThrow(() => JSON.stringify(status))
   })
 
   const bundledApi = store.apiForPanel
-  const codexText = await readFile(join(dist, '..', 'resources/codex-original/prompt.md'), 'utf8')
-  check('both bundled presets appear as read-only built-ins through the actual Host entry', () => {
-    for (const id of ['standard-efficient', 'codex-original']) {
+  const redteamDocument = yaml.load(await readFile(join(dist, '..', 'resources/redteam-mode/preset.yml'), 'utf8'), { schema: entryListSchema }).preset
+  const bundledText = {
+    'standard-efficient': await readFile(join(dist, '..', 'resources/standard-efficient/prefix.md'), 'utf8'),
+    'codex-original': await readFile(join(dist, '..', 'resources/codex-original/prompt.md'), 'utf8'),
+    'redteam-mode': redteamDocument.plugins[0].config.prefix,
+  }
+  const codexText = bundledText['codex-original']
+  check('all bundled presets appear as read-only built-ins through the actual Host entry', () => {
+    for (const id of Object.keys(bundledText)) {
       assert.equal(store.getState().snapshot.presets.find((row) => row.id === id)?.ownership, 'builtin')
       assert.ok(rows.has(id))
     }
     assert.equal(JSON.stringify(rows.get('standard')), standardBefore)
   })
-  for (const id of ['standard-efficient', 'codex-original']) {
+  for (const id of Object.keys(bundledText)) {
     const detail = await bundledApi.detail(id)
     assert.equal(detail.editable, false)
     const persona = detail.definition.plugins.find((row) => row.name === '@deepseek-ai/dsh-persona')
-    if (id === 'codex-original') assert.equal(persona.config.prefix, codexText)
-    const restored = structuredClone(detail.definition.plugins)
-    restored.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix = standardDefinition.plugins[0].config.prefix
-    assert.deepEqual(restored, standardDefinition.plugins)
-    assert.equal(detail.definition.order, standardDefinition.order)
+    assert.equal(persona.config.prefix, bundledText[id])
+    assert.equal(detail.definition.name, { 'standard-efficient': '标准增强', 'codex-original': 'Codex 原版', 'redteam-mode': '红队模式' }[id])
+    if (id === 'redteam-mode') {
+      assert.deepEqual(detail.definition, redteamDocument)
+    } else {
+      const restored = structuredClone(detail.definition.plugins)
+      restored.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix = standardDefinition.plugins[0].config.prefix
+      assert.deepEqual(restored, standardDefinition.plugins)
+      assert.equal(detail.definition.order, standardDefinition.order)
+    }
     await assert.rejects(() => bundledApi.remove({ id }), /不是本插件管理的预设/)
   }
-  check('bundled documents preserve the complete Standard tree and exact local Codex text', () => assert.equal(JSON.stringify(rows.get('standard')), standardBefore))
+  check('bundled documents preserve the complete Standard tree and exact local prompt text', () => assert.equal(JSON.stringify(rows.get('standard')), standardBefore))
+  assert.equal((await bundledApi.detail('redteam-mode')).summary.canToggle, true)
+  assert.equal(await store.setEnabled('redteam-mode', false), true)
+  check('full red-team preset can be disabled while remaining readable without document changes', () => {
+    assert.equal(rows.has('redteam-mode'), false)
+    assert.equal(store.getState().snapshot.presets.find((row) => row.id === 'redteam-mode').enabled, false)
+  })
+  assert.deepEqual((await bundledApi.detail('redteam-mode')).definition, redteamDocument)
+  await bundledApi.clone({ sourceId: 'redteam-mode', newId: 'redteam-fixture-copy' })
+  check('deriving the red-team preset preserves every supplied plugin and prompt field', () => {
+    assert.deepEqual(rows.get('redteam-fixture-copy').plugins, redteamDocument.plugins)
+  })
+  await bundledApi.remove({ id: 'redteam-fixture-copy' })
+  assert.equal(await store.setEnabled('redteam-mode', true), true)
+  assert.deepEqual(rows.get('redteam-mode'), redteamDocument)
+  const enablementTool = registeredTools.get('preset_manager_set_enabled')
+  assert.ok(enablementTool)
+  await enablementTool.execute({ id: 'codex-original', enabled: false })
+  const disabledBundled = (await bundledApi.snapshot()).presets.find((row) => row.id === 'codex-original')
+  check('the agent tool withdraws a bundled preset while its disabled manager row remains visible', () => {
+    assert.equal(rows.has('codex-original'), false)
+    assert.equal(disabledBundled.canToggle, true)
+    assert.equal(disabledBundled.enabled, false)
+    assert.equal(disabledBundled.registration, 'not-registered')
+  })
+  const inactiveDetail = await bundledApi.detail('codex-original')
+  check('disabled bundled presets retain read-only access to the complete original definition', () => {
+    assert.equal(inactiveDetail.editable, false)
+    assert.equal(inactiveDetail.definition.plugins.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix, codexText)
+  })
+  await assert.rejects(() => bundledApi.setEnabled({ id: 'standard', enabled: false }))
+  check('native DSH presets cannot be switched off through the plugin', () => assert.equal(JSON.stringify(rows.get('standard')), standardBefore))
   const bundledCopy = await bundledApi.clone({ sourceId: 'codex-original', newId: 'codex-user-copy' })
   check('a bundled preset forks into an independently editable user preset', () => assert.equal(bundledCopy.ok, true))
   assert.equal((await bundledApi.detail('codex-user-copy')).editable, true)
   await bundledApi.remove({ id: 'codex-user-copy' })
+  await bundledApi.setEnabled({ id: 'codex-original', enabled: true })
+  check('the UI Remote operation restores the same bundled preset after tool-based disablement', () => {
+    assert.ok(rows.has('codex-original'))
+    assert.equal(rows.get('codex-original').plugins.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix, codexText)
+  })
+  await store.refresh()
+  const importText = (await bundledApi.shareText('codex-original')).yaml
+  await store.previewImport(importText, 'share')
+  check('import collision produces one authoritative ID error through the actual Host entry', () => {
+    assert.equal(store.getState().preview.idConflict.conflict, true)
+    assert.equal(store.getState().preview.validation.errors.filter((issue) => issue.path === 'id').length, 1)
+  })
+  const { parseShareText, dumpShareText } = await import(pathToFileURL(join(dist, 'sharing/share-format.js')).href)
+  const importedDocument = parseShareText(importText)
+  assert.equal(importedDocument.ok, true)
+  const editedImportText = dumpShareText({ ...importedDocument.document.preset, id: 'codex-imported-copy' })
+  store.clearPreview()
+  await store.previewImport(editedImportText, 'share')
+  check('editing the ID inside the original YAML produces the validated import identity', () => {
+    assert.equal(store.getState().preview.definition.id, 'codex-imported-copy')
+    assert.equal(store.getState().preview.validation.ok, true)
+    assert.equal(store.getState().previewingImport, false)
+  })
+  assert.equal(await store.confirmImport({ text: importText, source: 'share', acknowledgedRisks: true }), false)
+  assert.equal(await store.confirmImport({ text: editedImportText, source: 'share', acknowledgedRisks: true }), true)
+  check('only the newly previewed import identity is registered and the original is preserved', () => {
+    assert.ok(rows.has('codex-imported-copy'))
+    assert.ok(rows.has('codex-original'))
+    assert.equal(rows.get('codex-original').plugins.find((row) => row.name === '@deepseek-ai/dsh-persona').config.prefix, codexText)
+  })
+  await bundledApi.remove({ id: 'codex-imported-copy' })
+  store.clearPreview()
 
+  assert.equal(await store.clone({ sourceId: 'standard', newId: 'switch-custom', name: 'Switch fixture' }), true)
+  assert.equal(await store.setEnabled('switch-custom', false), true)
+  check('a managed preset switch removes selection availability without removing its list entry', () => {
+    assert.equal(rows.has('switch-custom'), false)
+    const managed = store.getState().snapshot.presets.find((row) => row.id === 'switch-custom')
+    assert.equal(managed.enabled, false)
+    assert.equal(managed.canToggle, true)
+    assert.equal(store.getState().notice, undefined)
+  })
+  await store.openEditor('switch-custom', 'yaml')
+  store.setDraft({ ...store.getState().draft, name: 'Edited while disabled' })
+  assert.equal(await store.save(), true)
+  check('saving a disabled managed preset does not register it implicitly', () => {
+    assert.equal(rows.has('switch-custom'), false)
+    assert.equal(store.getState().detail.definition.name, 'Edited while disabled')
+  })
+  const disabledHistory = await bundledApi.history('switch-custom')
+  assert.ok(disabledHistory.length > 0)
+  await bundledApi.restore({ id: 'switch-custom', revision: disabledHistory[0].revision })
+  check('restoring a disabled preset revision preserves its disabled state', () => assert.equal(rows.has('switch-custom'), false))
+  await bundledApi.clone({ sourceId: 'switch-custom', newId: 'switch-derived' })
+  check('deriving from a disabled preset creates an enabled independent preset', () => assert.ok(rows.has('switch-derived')))
+  await bundledApi.remove({ id: 'switch-derived' })
+  await bundledApi.remove({ id: 'switch-custom' })
+  await bundledApi.clone({ sourceId: 'standard', newId: 'switch-custom' })
+  check('a deleted disabled ID can be reused as an enabled new preset', () => assert.ok(rows.has('switch-custom')))
+  await bundledApi.remove({ id: 'switch-custom' })
+  store.backToList()
   assert.equal(await store.clone({ sourceId: 'standard', newId: 'check-copy', name: '验证复制' }), true)
   await store.openEditor('check-copy', 'yaml')
   check('page clone, list refresh and YAML editor use the actual Host entry', () => {
@@ -500,17 +610,31 @@ try {
     assert.equal(providers.size, 0)
     assert.equal(client.get('remote.presetManager'), undefined)
   })
+  await host.get('presetManager').clone('standard', 'switch-persist', undefined, undefined)
+  await registeredTools.get('preset_manager_set_enabled').execute({ id: 'switch-persist', enabled: false })
+  await registeredTools.get('preset_manager_set_enabled').execute({ id: 'codex-original', enabled: false })
   await hostPlugin.dispose()
+  check('Host disposal unregisters the enablement tool along with its presets', () => assert.equal(registeredTools.size, 0))
   check('Host disposal withdraws bundled presets and preserves Standard', () => {
     assert.equal(rows.has('standard-efficient'), false)
     assert.equal(rows.has('codex-original'), false)
+    assert.equal(rows.has('redteam-mode'), false)
     assert.equal(JSON.stringify(rows.get('standard')), standardBefore)
   })
   const replacementHost = await host.plugin(hostEntry)
-  await host.get('presetManager').snapshot()
-  check('Host reactivation registers both bundled presets without duplicate IDs', () => {
+  const replacementSnapshot = await host.get('presetManager').snapshot()
+  check('bundled and managed enablement choices survive Host reactivation', () => {
+    for (const id of ['codex-original', 'switch-persist']) {
+      assert.equal(rows.has(id), false)
+      assert.equal(replacementSnapshot.presets.find((row) => row.id === id).enabled, false)
+    }
     assert.ok(rows.has('standard-efficient'))
-    assert.ok(rows.has('codex-original'))
+  })
+  await registeredTools.get('preset_manager_set_enabled').execute({ id: 'codex-original', enabled: true })
+  await registeredTools.get('preset_manager_set_enabled').execute({ id: 'switch-persist', enabled: true })
+  check('Host reactivation registers every bundled preset without duplicate IDs', () => {
+    for (const id of ['standard-efficient', 'codex-original', 'redteam-mode']) assert.ok(rows.has(id))
+    assert.notEqual(replacementSnapshot.presets.find((row) => row.id === 'redteam-mode').enabled, false)
   })
   await replacementHost.dispose()
   console.log(`\n${passed}/${passed} complete Client/Host entry checks passed (${dist})`)

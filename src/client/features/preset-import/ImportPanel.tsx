@@ -1,29 +1,12 @@
-/**
- * Import: paste, file, or clipboard → preview → confirm.
- *
- * The panel enforces the two-phase contract the Host implements. Previewing
- * parses, validates, checks module availability, and collects risks while
- * writing nothing; only the confirm step applies. That is why the confirm button
- * stays disabled until the user ticks the acknowledgement: an import that mounts
- * a composition the user did not read is exactly the failure this split exists to
- * prevent.
- *
- * No `!!js` expression is evaluated anywhere in this panel. Expressions are
- * listed as risks so the user can see what will be evaluated later, by the DSH
- * loader, inside the runtime.
- */
+/** Import: paste/file → current preview → explicit confirmation. */
 import * as React from 'react'
-import type { ImportPreview } from '../../../shared/types.js'
 import type { PageState, PresetManagerStore } from '../../state/store.js'
 import type { Translate } from '../../pages/PresetManagerPage.js'
-import {
-  Button,
-  Checkbox,
-  Field,
-  Notice,
-  Panel,
-} from '../../components/primitives.js'
-import { IconImport } from '../../components/icons.js'
+import { Button, Checkbox } from '../../components/primitives.js'
+import { Dialog } from '../../components/Dialog.js'
+import { YamlEditor } from '../../components/YamlEditor.js'
+import { IconAlert, IconImport } from '../../components/icons.js'
+import { ImportFeedback } from './ImportFeedback.js'
 
 export interface ImportPanelProps {
   readonly store: PresetManagerStore
@@ -31,251 +14,114 @@ export interface ImportPanelProps {
   readonly state: PageState
   readonly onClose: () => void
   readonly onImported: () => void
-}
-
-function line(issue: { message: string; path?: string; detail?: string }): string {
-  return `${issue.path === undefined ? '' : issue.path + ': '}${issue.message}${
-    issue.detail === undefined ? '' : `（${issue.detail}）`
-  }`
+  readonly children?: React.ReactNode
 }
 
 export function ImportPanel(props: ImportPanelProps): React.ReactElement {
   const { store, t, state } = props
-  const [text, setText] = React.useState<string>('')
+  const [text, setText] = React.useState('')
   const [source, setSource] = React.useState<'share' | 'yaml-file'>('share')
-  const [acknowledged, setAcknowledged] = React.useState<boolean>(false)
-  const [resolveId, setResolveId] = React.useState<string>('')
+  const [acknowledged, setAcknowledged] = React.useState(false)
   const [clipboardNote, setClipboardNote] = React.useState<string | undefined>(undefined)
   const fileInput = React.useRef<HTMLInputElement | null>(null)
+  const active = React.useRef(true)
+  const automaticPreview = React.useRef(false)
+  const requestedPreview = React.useRef<{ text: string; source: string } | undefined>(undefined)
+  React.useEffect(() => {
+    active.current = true
+    return () => { active.current = false; store.clearPreview() }
+  }, [store])
+  React.useEffect(() => {
+    if (!automaticPreview.current || text.trim() === '') return
+    const timer = setTimeout(() => {
+      const requested = requestedPreview.current
+      if (!active.current || (requested?.text === text && requested.source === source)) return
+      requestedPreview.current = { text, source }
+      void store.previewImport(text, source)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [text, source, store])
 
-  const preview: ImportPreview | undefined = state.preview
+  const preview = state.preview
+  const checking = state.previewingImport
+  const canConfirm = preview?.validation.ok === true && !checking && acknowledged && !state.busy
 
+  const changeText = (value: string, nextSource = source): void => {
+    if (value === text && nextSource === source) return
+    requestedPreview.current = undefined
+    store.clearPreview()
+    setText(value)
+    setSource(nextSource)
+    setAcknowledged(false)
+    setClipboardNote(undefined)
+  }
   const readClipboard = async (): Promise<void> => {
     try {
-      if (navigator.clipboard?.readText === undefined) throw new Error('clipboard unavailable')
+      if (!navigator.clipboard?.readText) throw new Error('clipboard unavailable')
       const content = await navigator.clipboard.readText()
-      setText(content)
-      setClipboardNote(undefined)
+      if (active.current) changeText(content, 'share')
     } catch {
-      // Reading the clipboard needs a permission this panel may not have; the
-      // paste box remains the supported path, so this is a hint, not an error.
-      setClipboardNote(t('import.clipboardFailed'))
+      if (active.current) setClipboardNote(t('import.clipboardFailed'))
     }
   }
-
   const onFile = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = event.target.files?.[0]
-    if (file === undefined) return
-    setText(await file.text())
-    setSource('yaml-file')
+    if (!file) return
+    const content = await file.text()
+    if (active.current) changeText(content, 'yaml-file')
   }
-
   const doPreview = async (): Promise<void> => {
     setAcknowledged(false)
+    automaticPreview.current = true
+    requestedPreview.current = { text, source }
     await store.previewImport(text, source)
   }
-
   const doImport = async (): Promise<void> => {
-    const finalId = resolveId.trim() === '' ? undefined : resolveId.trim()
+    if (!canConfirm || !preview) return
     const ok = await store.confirmImport({
-      text,
-      source,
-      ...(finalId === undefined ? {} : { id: finalId }),
-      acknowledgedRisks: acknowledged,
+      text, source, acknowledgedRisks: acknowledged,
     })
-    if (ok) props.onImported()
+    if (ok && active.current) props.onImported()
   }
 
-  const blockedByConflict = preview?.idConflict.conflict === true && resolveId.trim() === ''
-  const blockedByValidation = preview !== undefined && !preview.validation.ok
-  const canConfirm =
-    preview !== undefined && acknowledged && !blockedByConflict && !blockedByValidation && !state.busy
-
-  return React.createElement(
-    Panel,
-    {
-      title: t('import.heading'),
-      hint: t('import.nothingApplied'),
-      footer: React.createElement(
-        React.Fragment,
-        null,
-        React.createElement(Button, { onClick: props.onClose }, t('common.cancel')),
-        React.createElement('span', { className: 'dshpm-spacer' }),
-        preview === undefined
-          ? React.createElement(
-              Button,
-              {
-                variant: 'primary',
-                disabled: text.trim() === '' || state.busy,
-                onClick: () => void doPreview(),
-              },
-              t('action.previewImport'),
-            )
-          : React.createElement(
-              Button,
-              {
-                variant: 'primary',
-                disabled: !canConfirm,
-                onClick: () => void doImport(),
-              },
-              React.createElement(IconImport, { size: 13 }),
-              t('action.confirmImport'),
-            ),
+  return React.createElement(Dialog, {
+    variant: 'import', title: t('import.heading'), closeLabel: t('common.close'), busy: state.busy, onClose: props.onClose,
+    footer: React.createElement(React.Fragment, null,
+      React.createElement(Button, { disabled: state.busy, onClick: props.onClose }, t('common.cancel')),
+      React.createElement('span', { className: 'dshpm-import-note' }, t('import.nothingApplied')),
+      React.createElement('span', { className: 'dshpm-spacer' }),
+      preview === undefined ? React.createElement(Button, {
+        variant: 'primary', disabled: text.trim() === '' || state.busy || checking,
+        onClick: () => void doPreview(),
+      }, t(checking ? 'common.working' : 'action.previewImport')) : React.createElement(Button, {
+        variant: 'primary', disabled: !canConfirm, onClick: () => void doImport(),
+      }, React.createElement(IconImport, { size: 13 }), t('action.confirmImport')),
+    ),
+  }, React.createElement('div', { className: 'dshpm-import-layout' },
+    props.children,
+    React.createElement('div', { className: 'dshpm-import-source-head' },
+      React.createElement('span', { className: 'dshpm-label' }, t('import.pasteLabel')),
+      React.createElement('div', { className: 'dshpm-toolbar' },
+        React.createElement(Button, { small: true, disabled: state.busy, onClick: () => void readClipboard() }, t('import.readClipboard')),
+        React.createElement(Button, { small: true, disabled: state.busy, onClick: () => fileInput.current?.click() }, t('import.pickFile')),
+        React.createElement('input', {
+          ref: fileInput, type: 'file', accept: '.yml,.yaml,.txt', disabled: state.busy,
+          style: { display: 'none' }, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void onFile(event),
+        }),
       ),
-    },
-
-    // ---- source
-    React.createElement(
-      Field,
-      { label: t('import.pasteLabel') },
-      React.createElement('textarea', {
-        className: 'dshpm-textarea dshpm-textarea--code',
-        value: text,
-        spellCheck: false,
-        placeholder: t('import.emptyText'),
-        onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setText(event.target.value),
+    ),
+    React.createElement('div', { className: 'dshpm-import-code' },
+      React.createElement(YamlEditor, {
+        value: text, label: t('import.pasteLabel'), placeholder: t('import.emptyText'),
+        readOnly: state.busy, onChange: (value) => changeText(value),
       }),
     ),
-
-    clipboardNote === undefined
-      ? null
-      : React.createElement(Notice, { level: 'warning', message: clipboardNote }),
-
-    React.createElement(
-      'div',
-      { className: 'dshpm-toolbar' },
-      React.createElement(
-        Button,
-        { small: true, onClick: () => void readClipboard() },
-        t('import.readClipboard'),
-      ),
-      React.createElement(
-        Button,
-        { small: true, onClick: () => fileInput.current?.click() },
-        t('import.pickFile'),
-      ),
-      React.createElement('input', {
-        ref: fileInput,
-        type: 'file',
-        accept: '.yml,.yaml,.txt',
-        style: { display: 'none' },
-        onChange: (event: React.ChangeEvent<HTMLInputElement>) => void onFile(event),
-      }),
+    clipboardNote === undefined ? null : React.createElement('p', { className: 'dshpm-import-inline dshpm-import-inline--warning', role: 'status' },
+      React.createElement(IconAlert, { size: 14 }), React.createElement('span', null, clipboardNote),
     ),
-
-    preview === undefined
-      ? null
-      : React.createElement(
-          React.Fragment,
-          null,
-
-          React.createElement('hr', { className: 'dshpm-divider' }),
-
-          React.createElement(
-            'div',
-            { className: 'dshpm-row-meta' },
-            React.createElement(
-              'span',
-              { className: 'dshpm-mono' },
-              preview.definition.id,
-            ),
-            React.createElement(
-              'span',
-              { className: 'dshpm-count' },
-              `formatVersion ${preview.document.formatVersion}`,
-            ),
-            React.createElement(
-              'span',
-              { className: 'dshpm-count' },
-              t('detail.rowCount', { count: preview.definition.plugins.length }),
-            ),
-          ),
-
-          preview.definition.name === undefined
-            ? null
-            : React.createElement('p', { className: 'dshpm-label' }, preview.definition.name),
-          preview.definition.description === undefined
-            ? null
-            : React.createElement('p', { className: 'dshpm-hint' }, preview.definition.description),
-
-          // A conflict needs a new id before the import can proceed.
-          preview.idConflict.conflict
-            ? React.createElement(
-                React.Fragment,
-                null,
-                React.createElement(Notice, {
-                  level: 'warning',
-                  title: t('import.idConflictTitle'),
-                  message: t('import.idConflictBody'),
-                  details:
-                    preview.idConflict.suggestedId === undefined
-                      ? []
-                      : [`${t('import.newIdLabel')}: ${preview.idConflict.suggestedId}`],
-                }),
-                React.createElement(
-                  Field,
-                  { label: t('import.newIdLabel') },
-                  React.createElement('input', {
-                    className: 'dshpm-input dshpm-input--mono',
-                    type: 'text',
-                    value: resolveId,
-                    placeholder: preview.idConflict.suggestedId ?? '',
-                    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-                      setResolveId(event.target.value),
-                  }),
-                ),
-              )
-            : null,
-
-          preview.validation.errors.length === 0
-            ? null
-            : React.createElement(Notice, {
-                level: 'error',
-                title: t('import.errorsTitle'),
-                details: preview.validation.errors.map(line),
-              }),
-
-          preview.risks.length === 0
-            ? null
-            : React.createElement(Notice, {
-                level: 'warning',
-                title: t('import.risksTitle'),
-                details: preview.risks.map(line),
-              }),
-
-          preview.validation.warnings.length === 0
-            ? null
-            : React.createElement(Notice, {
-                level: 'info',
-                title: t('import.warningsTitle'),
-                details: preview.validation.warnings.map(line),
-              }),
-
-          // The complete composition, so the user approves what will actually mount.
-          React.createElement(
-            Field,
-            { label: t('import.compositionHeading') },
-            React.createElement('textarea', {
-              className: 'dshpm-textarea dshpm-textarea--code',
-              readOnly: true,
-              value: preview.yaml,
-              spellCheck: false,
-            }),
-          ),
-
-          React.createElement(
-            Checkbox,
-            {
-              checked: acknowledged,
-              disabled: blockedByValidation,
-              onChange: setAcknowledged,
-            },
-            t('import.acknowledge'),
-          ),
-
-          blockedByValidation || blockedByConflict
-            ? React.createElement('p', { className: 'dshpm-hint' }, t('import.blockedHint'))
-            : null,
-        ),
-  )
+    React.createElement(ImportFeedback, { preview, checking, t }),
+    preview === undefined ? null : React.createElement(Checkbox, {
+      checked: acknowledged, disabled: checking || !preview.validation.ok || state.busy, onChange: setAcknowledged,
+    }, t('import.acknowledge')),
+  ))
 }

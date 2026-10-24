@@ -211,13 +211,6 @@ export function previewImport(request: ImportRequest): ImportResult {
       if (issue.code === 'compat.missing-module') errors.push(issue)
     }
   }
-  if (idConflict.conflict) {
-    errors.push({
-      code: 'share.id-conflict',
-      message: `预设 ID "${wantedId}" 已被占用，请先修改 ID 再导入`,
-      path: 'id',
-    })
-  }
 
   const risks: ValidationIssue[] = [
     ...compatibility.issues.filter((issue) => issue.code !== 'compat.missing-module'),

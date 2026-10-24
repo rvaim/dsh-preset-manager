@@ -172,6 +172,10 @@ export const PRESET_MANAGER_DESCRIPTORS: readonly InvocationDescriptor[] = Objec
   method('cloneSources', []),
   method('detail', [jsonParameter('id', stringCodec('PresetId'))]),
   method('history', [jsonParameter('id', stringCodec('PresetId'))]),
+  method('setEnabled', [
+    jsonParameter('id', stringCodec('PresetId')),
+    jsonParameter('enabled', booleanCodec('PresetEnabled')),
+  ]),
 
   method('clone', [
     jsonParameter('sourceId', stringCodec('PresetId')),
@@ -216,6 +220,7 @@ export const PRESET_MANAGER_DESCRIPTORS: readonly InvocationDescriptor[] = Objec
   method('previewImport', [
     jsonParameter('text', stringCodec('ImportText')),
     jsonParameter('source', stringCodec('ImportSource')),
+    jsonParameter('id', optionalStringCodec('OptionalPresetId'), true),
   ]),
 
   method('importPreset', [

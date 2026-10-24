@@ -38,6 +38,7 @@ export interface PresetManagerRemoteService {
   cloneSources(): Promise<RemoteResult<readonly PresetSummary[]>>
   detail(id: string): Promise<RemoteResult<PresetDetail>>
   history(id: string): Promise<RemoteResult<HistoryEntry[]>>
+  setEnabled(id: string, enabled: boolean): Promise<RemoteResult<MutationResult>>
   clone(
     sourceId: string,
     newId?: string,
@@ -71,7 +72,7 @@ export interface PresetManagerRemoteService {
   shareText(
     id: string,
   ): Promise<RemoteResult<{ yaml: string; risks: readonly { code: string; message: string }[] }>>
-  previewImport(text: string, source: string): Promise<RemoteResult<ImportPreview>>
+  previewImport(text: string, source: string, id?: string): Promise<RemoteResult<ImportPreview>>
   importPreset(
     text: string,
     source: string,
@@ -119,6 +120,7 @@ export interface PresetManagerApi {
   cloneSources(): Promise<readonly PresetSummary[]>
   detail(id: string): Promise<PresetDetail>
   history(id: string): Promise<HistoryEntry[]>
+  setEnabled(request: { id: string; enabled: boolean }): Promise<MutationResult>
   clone(request: {
     sourceId: string
     newId?: string
@@ -144,7 +146,7 @@ export interface PresetManagerApi {
     yaml: string,
   ): Promise<{ definition: PresetDefinition; validation: ValidationReport }>
   shareText(id: string): Promise<{ yaml: string; risks: readonly { code: string; message: string }[] }>
-  previewImport(request: { text: string; source: 'share' | 'yaml-file' }): Promise<ImportPreview>
+  previewImport(request: { text: string; source: 'share' | 'yaml-file'; id?: string }): Promise<ImportPreview>
   importPreset(request: {
     text: string
     source: 'share' | 'yaml-file'
@@ -162,6 +164,7 @@ export function createApi(remote: PresetManagerRemoteService): PresetManagerApi 
     cloneSources: () => remote.cloneSources().then(unwrap),
     detail: (id) => remote.detail(id).then(unwrap),
     history: (id) => remote.history(id).then(unwrap),
+    setEnabled: (request) => remote.setEnabled(request.id, request.enabled).then(unwrap),
 
     clone: (request) =>
       remote
@@ -181,7 +184,7 @@ export function createApi(remote: PresetManagerRemoteService): PresetManagerApi 
     shareText: (id) => remote.shareText(id).then(unwrap),
 
     previewImport: (request) =>
-      remote.previewImport(request.text, request.source).then(unwrap),
+      remote.previewImport(request.text, request.source, request.id).then(unwrap),
     importPreset: (request) =>
       remote
         .importPreset(

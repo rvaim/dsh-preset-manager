@@ -3,22 +3,31 @@ import { PERSONA_MODULE } from '../../domain/persona-editor.js'
 import { BUNDLED_PRESETS, type BundledPrompts } from '../../shared/bundled-presets.js'
 import type { PresetDefinition, PresetPluginRow } from '../../shared/types.js'
 
+/** One `{{...}}` token of the DSH Persona prefix template. */
+const TEMPLATE_TOKEN = /\{\{([^{}]*)\}\}/g
+
 /** Derive from the running Standard declaration, preserving its entire composition. */
 export function deriveBundledPresets(
   standard: PresetDefinition,
   prompts: BundledPrompts,
 ): PresetDefinition[] {
   if (standard.id !== 'standard') throw new Error('bundled presets require the Standard declaration')
-  // Persona currently always interpolates its prefix. Do not escape, rewrite or
-  // silently substitute any part of the pinned upstream text.
-  if (prompts['codex-original'].includes('{{')) {
-    throw new Error('Codex prompt contains a DSH template delimiter; refusing to interpolate the upstream original')
-  }
-  if ([...prompts['standard-efficient'].matchAll(/\{\{([^{}]*)\}\}/g)].some((match) => match[1] !== 'model')) {
-    throw new Error('Standard Efficient contains an unexpected prompt variable')
+  // Persona currently always interpolates its prefix. Each declaration names the
+  // tokens its own text may carry; nothing is escaped, rewritten or silently
+  // substituted, and an unnamed token is refused instead of rendering as text.
+  const derivedPresets = BUNDLED_PRESETS.filter((preset) => !('definitionFile' in preset))
+  for (const preset of derivedPresets) {
+    const allowed = new Set<string>(preset.templateVariables)
+    const unexpected = [...prompts[preset.id].matchAll(TEMPLATE_TOKEN)]
+      .some((match) => match[1] === undefined || !allowed.has(match[1]))
+    if (!unexpected) continue
+    if (allowed.size === 0) {
+      throw new Error(`${preset.englishName} prompt contains a DSH template delimiter; refusing to interpolate the upstream original`)
+    }
+    throw new Error(`${preset.englishName} contains an unexpected prompt variable`)
   }
 
-  return BUNDLED_PRESETS.map((preset) => {
+  return derivedPresets.map((preset) => {
     const copy = cloneDefinition(standard)
     const personas: PresetPluginRow[] = []
     const visit = (rows: readonly PresetPluginRow[]): void => {

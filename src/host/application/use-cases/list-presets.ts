@@ -14,7 +14,7 @@ import type {
 } from '../../../shared/types.js'
 import { countPlugins } from '../../../domain/preset-model.js'
 import type { StoredPreset } from '../../ports/preset-repository.js'
-import type { ApplicationDeps } from '../deps.js'
+import { isBundledPreset, type ApplicationDeps } from '../deps.js'
 
 export interface ListOptions {
   readonly phase: ManagerSnapshot['phase']
@@ -26,10 +26,11 @@ export async function listPresets(
   deps: ApplicationDeps,
   options: ListOptions,
 ): Promise<ManagerSnapshot> {
-  const [runtimeRows, stored, defaultId] = await Promise.all([
+  const [runtimeRows, stored, defaultId, disabled] = await Promise.all([
     deps.registrations.roster(),
     deps.repository.list(),
     deps.defaultPresetId().catch(() => undefined),
+    deps.repository.disabledPresetIds(),
   ])
 
   const storedById = new Map<string, StoredPreset>(
@@ -41,12 +42,13 @@ export async function listPresets(
   for (const row of runtimeRows) {
     seen.add(row.id)
     const managed = storedById.get(row.id)
+    const bundled = deps.bundled.ids.includes(row.id) && deps.bundled.holds(row.id)
     // A runtime row is only labelled `builtin` when a shipped bundle declares
     // it; anything else the manager does not own came from another plugin.
     const ownership: PresetSummary['ownership'] =
       managed !== undefined
         ? 'managed'
-        : deps.isShippedPreset(row.id)
+        : bundled
           ? 'builtin'
           : row.ownership === 'managed'
             ? 'third-party'
@@ -55,6 +57,8 @@ export async function listPresets(
     summaries.push({
       ...row,
       ownership,
+      ...(managed !== undefined || bundled ? { canToggle: true } : {}),
+      ...(disabled.has(row.id) ? { enabled: false } : {}),
       registration: managed !== undefined ? 'registered' : row.registration,
       isDefault: row.id === defaultId,
       pluginCount:
@@ -65,6 +69,7 @@ export async function listPresets(
   for (const entry of stored) {
     if (seen.has(entry.definition.id)) continue
     const record = deps.registrations.record(entry.definition.id)
+    const isDisabled = disabled.has(entry.definition.id)
     summaries.push({
       id: entry.definition.id,
       ...(entry.definition.name === undefined ? {} : { name: entry.definition.name }),
@@ -73,11 +78,35 @@ export async function listPresets(
         : { description: entry.definition.description }),
       ...(entry.definition.order === undefined ? {} : { order: entry.definition.order }),
       ownership: 'managed',
-      registration: record?.state === 'failed' ? 'failed' : 'not-registered',
+      canToggle: true,
+      ...(isDisabled ? { enabled: false } : {}),
+      registration: isDisabled ? 'not-registered' : record?.state === 'failed' ? 'failed' : 'not-registered',
       isDefault: entry.definition.id === defaultId,
-      health: record?.state === 'failed' ? 'broken' : 'unchecked',
-      ...(record?.diagnostic === undefined ? {} : { broken: record.diagnostic }),
+      health: isDisabled ? 'unchecked' : record?.state === 'failed' ? 'broken' : 'unchecked',
+      ...(isDisabled || record?.diagnostic === undefined ? {} : { broken: record.diagnostic }),
       pluginCount: countPlugins(entry.definition.plugins),
+    })
+  }
+
+  // A disabled bundled preset is absent from the runtime roster by design. It
+  // remains listable so it can be viewed, copied, exported, or re-enabled.
+  for (const id of deps.bundled.ids) {
+    if (seen.has(id) || !isBundledPreset(deps, id) || !disabled.has(id)) continue
+    const definition = deps.bundled.definition(id)
+    if (definition === undefined) continue
+    seen.add(id)
+    summaries.push({
+      id,
+      ...(definition.name === undefined ? {} : { name: definition.name }),
+      ...(definition.description === undefined ? {} : { description: definition.description }),
+      ...(definition.order === undefined ? {} : { order: definition.order }),
+      ownership: 'builtin',
+      canToggle: true,
+      enabled: false,
+      registration: 'not-registered',
+      isDefault: id === defaultId,
+      health: 'unchecked',
+      pluginCount: countPlugins(definition.plugins),
     })
   }
 

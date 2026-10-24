@@ -59,6 +59,17 @@ export interface PresetRepository {
   /** Corrupt files found while reading, for the startup diagnostics. */
   quarantined(): Promise<readonly { file: string; reason: string }[]>
 
+  /**
+   * Presets whose runtime publication is intentionally suppressed.
+   *
+   * Enablement is plugin state, not part of the preset definition. Keeping it
+   * separate means editing a disabled preset never changes its YAML and a
+   * malformed enablement update cannot partially rewrite the definition.
+   */
+  disabledPresetIds(): Promise<ReadonlySet<string>>
+  isPresetDisabled(id: string): Promise<boolean>
+  setPresetDisabled(id: string, disabled: boolean): Promise<void>
+
   /** Absolute path of the plugin-owned data directory. */
   readonly directory: string
 

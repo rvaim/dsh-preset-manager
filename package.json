@@ -1,6 +1,6 @@
 {
   "name": "@rvaim/dsh-preset-manager",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "DeepSeek Harness Agent preset manager: register and manage agent presets at runtime without editing any DSH configuration file.",
   "keywords": [
     "deepseek-harness",

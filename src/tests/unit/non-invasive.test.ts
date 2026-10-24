@@ -28,6 +28,7 @@ import type { ApplicationDeps } from '../../host/application/deps.js'
 import { dumpShareText } from '../../sharing/share-format.js'
 import { FakeAgentPresetRegistry } from './fakes/fake-registry.js'
 import { PERSONA_MODULE } from '../../domain/persona-editor.js'
+import type { BundledPresetRuntime } from '../../host/ports/bundled-presets.js'
 
 const roots: string[] = []
 
@@ -84,6 +85,14 @@ const PROFILE_FILES: Record<string, string> = {
   ].join('\n'),
 }
 
+const NO_BUNDLED_PRESETS: BundledPresetRuntime = {
+  ids: [],
+  holds: () => false,
+  conflicted: () => false,
+  definition: () => undefined,
+  setRegistered: async () => ({ healthy: true }),
+}
+
 async function makeHarness(): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), 'dshpm-noninvasive-'))
   roots.push(root)
@@ -123,10 +132,10 @@ async function makeHarness(): Promise<Harness> {
   const deps: ApplicationDeps = {
     repository,
     source,
+    bundled: NO_BUNDLED_PRESETS,
     registrations,
     resolveModule: () => true,
     defaultPresetId: async () => 'standard-efficient',
-    isShippedPreset: (id) => id === 'standard' || id === 'minimal',
     warn: () => {},
     now: Date.now,
   }

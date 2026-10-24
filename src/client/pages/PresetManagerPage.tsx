@@ -47,7 +47,12 @@ export function PresetManagerPage(props: PageProps): React.ReactElement {
     setConfirmation('none')
     if (removed) closeView()
   }
-  const closeOverlay = (): void => { if (!busy) { setOverlay({ kind: 'none' }); store.dismissNotice() } }
+  const closeOverlay = (): void => {
+    if (busy) return
+    if (overlay.kind === 'import') store.clearPreview()
+    else store.dismissNotice()
+    setOverlay({ kind: 'none' })
+  }
 
   return React.createElement('div', { className: 'dshpm' },
     React.createElement('style', { 'data-dsh-preset-manager': 'true' }, STYLES),
@@ -69,14 +74,17 @@ export function PresetManagerPage(props: PageProps): React.ReactElement {
       onDeleteRequest: () => { setAcknowledgedDefaultRisk(false); setConfirmation('delete') },
       onDelete: () => void remove(), onSave: () => setConfirmation('save'), onConfirmSave: () => void save(),
       acknowledgedDefaultRisk, onAcknowledgeDefaultRisk: setAcknowledgedDefaultRisk,
-      onOverlay: setOverlay,
+      onOverlay: (next) => { if (next.kind === 'import') store.clearPreview(); setOverlay(next) },
     }),
-    ready && overlay.kind !== 'none' ? React.createElement(Dialog, {
-      key: overlay.kind, title: t(overlay.kind === 'import' ? 'import.heading' : 'data.heading'),
+    ready && overlay.kind === 'import' ? React.createElement(ImportPanel, {
+      key: 'import', store, t, state, onClose: closeOverlay,
+      onImported: () => setOverlay({ kind: 'none' }),
+    }, React.createElement(OperationNotice, { state, store, t })) : null,
+    ready && overlay.kind === 'data' ? React.createElement(Dialog, {
+      key: 'data', title: t('data.heading'),
       closeLabel: t('common.close'), busy, onClose: closeOverlay,
     },
       React.createElement(OperationNotice, { state, store, t }),
-      overlay.kind === 'import' ? React.createElement(ImportPanel, { store, t, state, onClose: closeOverlay, onImported: () => setOverlay({ kind: 'none' }) }) :
       React.createElement(DataPanel, { store, t, snapshot: state.snapshot, api: store.apiForPanel, onClose: closeOverlay }),
     ) : null,
   )
@@ -101,7 +109,7 @@ export interface WorkspaceProps {
   onOverlay(next: Overlay): void
 }
 
-/** The grid is never replaced by a detail/editor view; its scroll seat survives. */
+/** The list is never replaced by a detail/editor view; its scroll seat survives. */
 export function PresetWorkspace(props: WorkspaceProps): React.ReactElement {
   const { state, store, t, busy, ready } = props
   const view = state.view
@@ -130,7 +138,8 @@ export function PresetWorkspace(props: WorkspaceProps): React.ReactElement {
   const changes = state.detail && state.draft ? diffPresets(state.detail.definition, state.draft) : undefined
   return React.createElement(React.Fragment, null,
     React.createElement(PresetList, {
-      key: 'preset-grid', state, t, busy, ready,
+      key: 'preset-list', state, t, busy, ready,
+      onToggle: (id, enabled) => store.setEnabled(id, enabled),
       onView: (id) => void store.openDetail(id),
       onEditPersona: (id) => void store.openEditor(id, 'persona'),
       onHistory: (id) => void store.openHistory(id),

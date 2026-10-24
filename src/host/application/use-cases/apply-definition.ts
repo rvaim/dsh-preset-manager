@@ -53,6 +53,19 @@ export async function applyDefinition(
   }
 
   const revision = revisionOf(candidate)
+  const disabled = owned !== undefined &&
+    await deps.repository.isPresetDisabled(candidate.id).catch(() => false)
+  if (disabled) {
+    const stored = await deps.repository.save(candidate, options.reason, options.expectedRevision)
+    return {
+      ok: true,
+      applied: true,
+      preset: await summaryOf(deps, stored),
+      errors: [],
+      warnings: report.warnings,
+    }
+  }
+
   const record = await deps.registrations.register(candidate, revision)
   if (record.state !== 'registered') {
     throw new ManagerError(
@@ -111,8 +124,14 @@ async function compensateFileFailure(deps: ApplicationDeps, id: string): Promise
 async function summaryOf(deps: ApplicationDeps, stored: StoredPreset): Promise<PresetSummary> {
   const rows = await deps.registrations.roster().catch(() => [])
   const found = rows.find((row) => row.id === stored.definition.id)
+  const disabled = await deps.repository.isPresetDisabled(stored.definition.id).catch(() => false)
   if (found !== undefined) {
-    return { ...found, pluginCount: countPlugins(stored.definition.plugins) }
+    return {
+      ...found,
+      canToggle: true,
+      ...(disabled ? { enabled: false } : {}),
+      pluginCount: countPlugins(stored.definition.plugins),
+    }
   }
   return {
     id: stored.definition.id,
@@ -122,9 +141,11 @@ async function summaryOf(deps: ApplicationDeps, stored: StoredPreset): Promise<P
       : { description: stored.definition.description }),
     ...(stored.definition.order === undefined ? {} : { order: stored.definition.order }),
     ownership: 'managed',
-    registration: 'registered',
+    canToggle: true,
+    ...(disabled ? { enabled: false } : {}),
+    registration: disabled ? 'not-registered' : 'registered',
     isDefault: false,
-    health: 'healthy',
+    health: disabled ? 'unchecked' : 'healthy',
     pluginCount: countPlugins(stored.definition.plugins),
   }
 }

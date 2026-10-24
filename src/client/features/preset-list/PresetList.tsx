@@ -1,10 +1,11 @@
-/** Native-style preset cards: purpose first, contextual actions in each footer. */
+/** Compact preset rows with aligned descriptions, actions and owned-preset switches. */
 import * as React from 'react'
 import type { PresetSummary } from '../../../shared/types.js'
 import type { PageState } from '../../state/store.js'
 import type { Translate } from '../../pages/PresetManagerPage.js'
 import { ActionButton } from '../../components/ActionButton.js'
-import { Badge, Button, EmptyState, Loading, Panel } from '../../components/primitives.js'
+import { Button, EmptyState, Loading, Panel } from '../../components/primitives.js'
+import { Switch } from '../../components/Switch.js'
 import { IconCopy, IconEdit, IconHistory, IconImport } from '../../components/icons.js'
 import { presetDisplay } from '../preset-display.js'
 
@@ -17,12 +18,14 @@ export interface PresetListProps {
   readonly onEditPersona: (id: string) => void
   readonly onHistory: (id: string) => void
   readonly onExport: (id: string) => Promise<boolean>
+  readonly onToggle: (id: string, enabled: boolean) => Promise<boolean>
   readonly onImport: () => void
   readonly onData: () => void
   readonly onRetry: () => void
 }
 
 export function stateOf(summary: PresetSummary): { tone: 'ok' | 'warn' | 'err' | 'idle'; key: string } {
+  if (summary.enabled === false) return { tone: 'idle', key: 'state.disabled' }
   if (summary.registration === 'failed') return { tone: 'err', key: 'state.failed' }
   if (summary.health === 'broken') return { tone: 'err', key: 'state.broken' }
   if (summary.registration === 'registered') return { tone: 'ok', key: 'state.registered' }
@@ -52,22 +55,17 @@ export function PresetList(props: PresetListProps): React.ReactElement {
       React.createElement(Button, { variant: 'primary', disabled: !props.ready || props.busy, onClick: props.onImport },
         React.createElement(IconImport, { size: 14 }), t('action.import')),
       React.createElement('span', { className: 'dshpm-spacer' }),
-      React.createElement('span', { className: 'dshpm-count' }, t('list.summary', {
-        total: presets.length, managed: groups[1]!.rows.length,
-      })),
+      React.createElement('span', { className: 'dshpm-count' }, t('list.summary', { total: presets.length, managed: groups[1]!.rows.length })),
       React.createElement(Button, { variant: 'quiet', disabled: !props.ready || props.busy, onClick: props.onData }, t('action.purge')),
     ),
     ...groups.map((group) => group.rows.length === 0 ? null : React.createElement('section', {
       key: group.key, className: 'dshpm-preset-group', 'aria-label': t(group.label),
     },
       React.createElement('h3', { className: 'dshpm-group-title' }, t(group.label)),
-      React.createElement('div', { className: 'dshpm-preset-grid' }, group.rows.map((summary) =>
-        React.createElement(PresetCard, { ...props, key: summary.id, summary }))),
+      React.createElement('div', { className: 'dshpm-preset-list', role: 'list' }, group.rows.map((summary) =>
+        React.createElement(PresetRow, { ...props, key: summary.id, summary }))),
     )),
-    groups[1]!.rows.length === 0 ? React.createElement('section', { className: 'dshpm-preset-group' },
-      React.createElement('h3', { className: 'dshpm-group-title' }, t('list.customGroup')),
-      React.createElement('p', { className: 'dshpm-custom-hint' }, t('list.customHint')),
-    ) : null,
+    groups[1]!.rows.length === 0 ? React.createElement('p', { className: 'dshpm-custom-hint' }, t('list.customHint')) : null,
     presets.length === 0 ? React.createElement(Panel, null, React.createElement(EmptyState, {
       title: t('list.emptyTitle'), body: t('list.emptyBody'),
       actions: React.createElement(Button, { variant: 'primary', disabled: props.busy, onClick: props.onImport }, t('list.emptyActionImport')),
@@ -75,39 +73,51 @@ export function PresetList(props: PresetListProps): React.ReactElement {
   )
 }
 
-export function PresetCard(props: PresetListProps & { readonly summary: PresetSummary }): React.ReactElement {
-  const { summary, t } = props
+export function PresetRow(props: PresetListProps & { readonly summary: PresetSummary }): React.ReactElement {
+  const { summary, t, state } = props
   const display = presetDisplay(summary, t)
   const live = stateOf(summary)
   const disabled = props.busy || !props.ready
   const managed = summary.ownership === 'managed'
+  const enabled = summary.enabled !== false
+  const defaultLocked = summary.isDefault && enabled
+  const toggling = state.togglingId === summary.id
+  const toggleFailure = state.notice?.localAction?.kind === 'toggle' && state.notice.localAction.id === summary.id ? state.notice : undefined
   return React.createElement('article', {
-    className: 'dshpm-preset-card', 'data-default': summary.isDefault || undefined,
-    'data-preset-id': summary.id,
+    role: 'listitem', className: 'dshpm-preset-row', 'data-default': summary.isDefault || undefined,
+    'data-preset-id': summary.id, 'data-disabled': !enabled || undefined,
   },
-    React.createElement('div', { className: 'dshpm-preset-content' },
+    React.createElement('div', { className: 'dshpm-preset-identity' },
       React.createElement('div', { className: 'dshpm-preset-title-row' },
         React.createElement('h4', { className: 'dshpm-preset-name' }, display.name),
         summary.isDefault ? React.createElement('span', { className: 'dshpm-default-badge' }, t('state.default')) : null,
-        React.createElement('code', { className: 'dshpm-preset-id' }, summary.id),
+        live.tone === 'ok' ? null : React.createElement('span', { className: `dshpm-row-state dshpm-row-state--${live.tone}`, title: summary.broken }, t(live.key)),
       ),
+      React.createElement('code', { className: 'dshpm-preset-id' }, summary.id),
+    ),
+    React.createElement('div', { className: 'dshpm-preset-purpose' },
       React.createElement('p', { className: 'dshpm-preset-description' }, display.description),
-      live.tone === 'ok' ? null : React.createElement(Badge, { tone: live.tone, title: summary.broken }, t(live.key)),
+      toggleFailure ? React.createElement('p', { className: 'dshpm-row-error', role: 'alert' }, toggleFailure.message) : null,
     ),
     React.createElement('div', { className: 'dshpm-preset-actions' },
-      React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onView(summary.id) }, t('action.viewConfig')),
-      managed ? React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onEditPersona(summary.id) },
-        React.createElement(IconEdit, { size: 14 }), t('action.edit')) : null,
-      React.createElement('span', { className: 'dshpm-spacer' }),
-      managed ? React.createElement(Button, { variant: 'quiet', disabled, onClick: () => props.onHistory(summary.id), title: `${t('action.history')} · ${display.name}` },
-        React.createElement(IconHistory, { size: 14 })) : null,
+      React.createElement(Button, { small: true, variant: 'quiet', disabled, onClick: () => props.onView(summary.id) }, t('action.viewConfig')),
+      managed ? React.createElement(Button, { small: true, variant: 'quiet', disabled, onClick: () => props.onEditPersona(summary.id) },
+        React.createElement(IconEdit, { size: 13 }), t('action.edit')) : null,
+      managed ? React.createElement(Button, { small: true, variant: 'quiet', disabled, onClick: () => props.onHistory(summary.id), title: `${t('action.history')} · ${display.name}` },
+        React.createElement(IconHistory, { size: 13 })) : null,
       React.createElement(ActionButton, {
         disabled, label: t('action.copy'), pendingLabel: t('feedback.copying'), successLabel: t('common.copied'), retryLabel: t('common.retry'),
-        hint: t('feedback.copyHint'), icon: React.createElement(IconCopy, { size: 14 }),
-        feedback: props.state.notice?.localAction?.id === summary.id && props.state.notice.localAction.kind === 'copy'
-          ? [props.state.notice.message, ...(props.state.notice.details ?? [])].join('\n') : undefined,
+        hint: t('feedback.copyHint'), icon: React.createElement(IconCopy, { size: 13 }),
+        feedback: state.notice?.localAction?.id === summary.id && state.notice.localAction.kind === 'copy'
+          ? [state.notice.message, ...(state.notice.details ?? [])].join('\n') : undefined,
         onAction: () => props.onExport(summary.id),
       }),
+      summary.canToggle ? React.createElement(Switch, {
+        checked: enabled, busy: toggling, disabled: disabled || defaultLocked,
+        label: t(enabled ? 'toggle.disableLabel' : 'toggle.enableLabel', { name: display.name }),
+        title: defaultLocked ? t('toggle.defaultHint') : t(enabled ? 'toggle.disableLabel' : 'toggle.enableLabel', { name: display.name }),
+        onChange: (next) => void props.onToggle(summary.id, next),
+      }) : null,
     ),
   )
 }

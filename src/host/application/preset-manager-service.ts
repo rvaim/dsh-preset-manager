@@ -41,6 +41,7 @@ import { deletePreset } from './use-cases/delete-preset.js'
 import { restorePreset } from './use-cases/restore-preset.js'
 import { exportPresetUseCase, sharePreset } from './use-cases/export-preset.js'
 import { importPresetUseCase, previewImportUseCase } from './use-cases/import-preset.js'
+import { setEnabled } from './use-cases/set-enabled.js'
 
 export class PresetManagerService {
   private readonly deps: ApplicationDeps
@@ -70,7 +71,9 @@ export class PresetManagerService {
         issue.code === 'startup.registration-failed' ||
         issue.code === 'bundled.registration-failed' ||
         issue.code === 'bundled.id-conflict' ||
+        issue.code === 'bundled.enablement-unreadable' ||
         issue.code === 'storage.unreadable' ||
+        issue.code === 'startup.enablement-unreadable' ||
         issue.code === 'storage.quarantined',
     )
       ? 'degraded'
@@ -210,6 +213,14 @@ export class PresetManagerService {
     return this.mutate(() => restorePreset(this.deps, request))
   }
 
+  setEnabled(request: {
+    id: string
+    enabled: boolean
+  }): Promise<MutationResult> {
+    this.assertUsable()
+    return this.mutate(() => setEnabled(this.deps, request))
+  }
+
   importPreset(request: {
     text: string
     source: ImportSource
@@ -225,6 +236,7 @@ export class PresetManagerService {
   async previewImport(request: {
     text: string
     source: ImportSource
+    id?: string
   }): Promise<ImportPreview> {
     this.assertUsable()
     return previewImportUseCase(this.deps, request)
@@ -302,17 +314,38 @@ export class PresetManagerService {
       for (const entry of stored) {
         await this.deps.registrations.unregister(entry.definition.id)
       }
+      // Bundled registrations must be withdrawn before the metadata carrying
+      // their disabled state is deleted. Otherwise purge would leave them live
+      // until the next plugin restart.
+      for (const id of this.deps.bundled.ids) {
+        if (this.deps.bundled.conflicted(id)) continue
+        await this.deps.bundled.setRegistered(id, false)
+      }
       await this.deps.repository.purge()
+      const warnings: ValidationIssue[] = [
+        {
+          code: 'data.purged',
+          message: '插件数据已清除；清理前的快照保存在备份目录中',
+        },
+      ]
+      // Purge also clears enablement state, whose default for bundled presets is
+      // enabled. Restore that default now so disk and runtime agree.
+      for (const id of this.deps.bundled.ids) {
+        if (this.deps.bundled.conflicted(id) || this.deps.bundled.holds(id)) continue
+        const outcome = await this.deps.bundled.setRegistered(id, true)
+        if (!outcome.healthy) {
+          warnings.push({
+            code: outcome.conflict ? 'bundled.id-conflict' : 'bundled.registration-failed',
+            message: `自带预设「${id}」未能在清理后恢复启用；下次启动会再次尝试`,
+            ...(outcome.broken === undefined ? {} : { detail: outcome.broken }),
+          })
+        }
+      }
       return {
         ok: true,
         applied: true,
         errors: [],
-        warnings: [
-          {
-            code: 'data.purged',
-            message: '插件数据已清除；清理前的快照保存在备份目录中',
-          },
-        ],
+        warnings,
       }
     })
   }

@@ -66,6 +66,14 @@ interface MetadataFile {
    * Recorded so the UI can keep warning without nagging on every render.
    */
   readonly defaultRiskAcknowledged?: readonly string[]
+  /**
+   * Preset ids the user disabled from the host selector.
+   *
+   * This list covers both stored presets and bundled presets. It deliberately
+   * lives beside, not inside, the preset files so enablement never rewrites a
+   * definition and survives a restart.
+   */
+  readonly disabledPresets?: readonly string[]
 }
 
 export interface FileRepositoryOptions {
@@ -339,10 +347,18 @@ export class FilePresetRepository implements PresetRepository {
         if (!isMissing(error)) throw error
       }
       const metadata = await this.readMetadata()
-      if (metadata.presets[id] !== undefined) {
+      const disabled = new Set(metadata.disabledPresets ?? [])
+      const wasDisabled = disabled.delete(id)
+      if (metadata.presets[id] !== undefined || wasDisabled) {
         const presets = { ...metadata.presets }
         delete presets[id]
-        await this.writeMetadata({ ...metadata, presets })
+        await this.writeMetadata({
+          ...metadata,
+          presets,
+          ...(metadata.disabledPresets === undefined
+            ? {}
+            : { disabledPresets: [...disabled].sort() }),
+        })
       }
     })
   }
@@ -402,7 +418,8 @@ export class FilePresetRepository implements PresetRepository {
     if (!/^[a-f0-9]{8,64}$/u.test(revision)) return undefined
     const path = join(this.historyPresetDir(id), `${revision}${PRESET_EXTENSION}`)
     try {
-      return parsePresetDocument(await readFile(path, 'utf8'))
+      const definition = parsePresetDocument(await readFile(path, 'utf8'))
+      return definition.id === id ? definition : undefined
     } catch {
       return undefined
     }
@@ -475,6 +492,27 @@ export class FilePresetRepository implements PresetRepository {
     return (metadata.defaultRiskAcknowledged ?? []).includes(id)
   }
 
+  // ----------------------------------------------------------- enablement
+
+  async disabledPresetIds(): Promise<ReadonlySet<string>> {
+    const metadata = await this.readMetadata()
+    return new Set(metadata.disabledPresets ?? [])
+  }
+
+  async isPresetDisabled(id: string): Promise<boolean> {
+    return (await this.disabledPresetIds()).has(id)
+  }
+
+  async setPresetDisabled(id: string, disabled: boolean): Promise<void> {
+    return this.serialize(async () => {
+      const metadata = await this.readMetadata()
+      const ids = new Set(metadata.disabledPresets ?? [])
+      if (disabled) ids.add(id)
+      else ids.delete(id)
+      await this.writeMetadata({ ...metadata, disabledPresets: [...ids].sort() })
+    })
+  }
+
   // ---------------------------------------------------------------- purge
 
   /**
@@ -488,15 +526,20 @@ export class FilePresetRepository implements PresetRepository {
     return this.serialize(async () => {
       await mkdir(join(this.directory, BACKUPS_DIR), { recursive: true })
       const presets = await this.list()
-      if (presets.length > 0) {
+      const metadata = await this.readMetadata()
+      if (presets.length > 0 || (metadata.disabledPresets?.length ?? 0) > 0) {
         const stamp = new Date().toISOString().replace(/[:.]/gu, '-')
         const backup = join(this.directory, BACKUPS_DIR, `purge-${stamp}.json`)
-        const snapshot = presets.map((entry) => ({
-          id: entry.definition.id,
-          revision: entry.revision,
-          savedAt: entry.savedAt,
-          definition: entry.definition,
-        }))
+        const snapshot = {
+          schemaVersion: 1,
+          presets: presets.map((entry) => ({
+            id: entry.definition.id,
+            revision: entry.revision,
+            savedAt: entry.savedAt,
+            definition: entry.definition,
+          })),
+          disabledPresets: metadata.disabledPresets ?? [],
+        }
         await this.writeAtomic(backup, JSON.stringify(snapshot, null, 2) + '\n')
       }
 

@@ -40,6 +40,7 @@ export interface PresetManagerRemoteFace {
   cloneSources(): Promise<readonly PresetSummary[]>
   detail(id: string): Promise<PresetDetail>
   history(id: string): Promise<HistoryEntry[]>
+  setEnabled(id: string, enabled: boolean): Promise<MutationResult>
 
   clone(
     sourceId: string,
@@ -67,7 +68,7 @@ export interface PresetManagerRemoteFace {
   ): Promise<{ definition: PresetDefinition; validation: ValidationReport }>
   exportPreset(id: string): Promise<ExportResult>
   shareText(id: string): Promise<{ yaml: string; risks: readonly ValidationIssue[] }>
-  previewImport(text: string, source: string): Promise<ImportPreview>
+  previewImport(text: string, source: string, id?: string): Promise<ImportPreview>
   importPreset(
     text: string,
     source: string,
@@ -97,6 +98,7 @@ export function createRemoteFace(service: PresetManagerService): PresetManagerRe
     cloneSources: () => service.cloneSources(),
     detail: (id) => service.detail(id),
     history: (id) => service.history(id),
+    setEnabled: (id, enabled) => service.setEnabled({ id, enabled }),
 
     clone: (sourceId, newId, name, description) =>
       service.clone({
@@ -132,8 +134,8 @@ export function createRemoteFace(service: PresetManagerService): PresetManagerRe
     exportPreset: (id) => service.exportPreset(id),
     shareText: (id) => service.shareText(id),
 
-    previewImport: (text, source) =>
-      service.previewImport({ text, source: asImportSource(source) }),
+    previewImport: (text, source, id) =>
+      service.previewImport({ text, source: asImportSource(source), ...(id === undefined ? {} : { id }) }),
 
     importPreset: (text, source, id, name, acknowledgedRisks) =>
       service.importPreset({

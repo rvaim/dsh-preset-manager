@@ -237,8 +237,26 @@ describe('import preview', () => {
     assert.equal(result.preview.idConflict.conflict, true)
     assert.equal(result.preview.idConflict.existingOwnership, 'builtin')
     assert.equal(result.preview.validation.ok, false)
+    assert.equal(result.preview.validation.errors.filter((issue) => issue.path === 'id').length, 1)
     // A concrete suggestion is offered rather than a random id.
     assert.equal(result.preview.idConflict.suggestedId, 'standard-copy')
+  })
+
+  it('validates the edited import ID without changing the source composition', () => {
+    const original = { ...RICH, id: 'standard' }
+    for (const [id, valid] of [['standard-copy', true], ['mine', false], ['', false], ['Bad ID', false]] as const) {
+      const result = previewImport({
+        text: dumpShareText(original), source: 'share', id,
+        knownPresets: known, resolveModule: resolveAll,
+      })
+      assert.equal(result.ok, true)
+      if (!result.ok) continue
+      assert.equal(result.preview.definition.id, id)
+      assert.equal(result.preview.document.preset.id, id)
+      assert.equal(result.preview.validation.ok, valid)
+      assert.deepEqual(result.preview.definition.plugins, original.plugins)
+    }
+    assert.equal(original.id, 'standard')
   })
 
   it('blocks an import whose plugin package is missing', () => {

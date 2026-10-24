@@ -1,7 +1,7 @@
 /** Real YAML editor shared by entry, full-document and read-only views. */
 import * as React from 'react'
 import { Annotation, Compartment, EditorState, Transaction } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, placeholder, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { HighlightStyle, bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit, syntaxHighlighting } from '@codemirror/language'
 import { yaml } from '@codemirror/lang-yaml'
@@ -52,6 +52,7 @@ export interface YamlEditorProps {
   value: string
   label: string
   readOnly?: boolean
+  placeholder?: string
   onChange?(value: string): void
 }
 
@@ -61,9 +62,10 @@ export function YamlEditor(props: YamlEditorProps): React.ReactElement {
   const onChange = React.useRef(props.onChange)
   const editable = React.useRef(new Compartment())
   onChange.current = props.onChange
-  const accessibility = (readOnly: boolean, label: string) => [
+  const accessibility = (readOnly: boolean, label: string, emptyText?: string) => [
     EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly),
     EditorView.contentAttributes.of({ 'aria-label': label, 'aria-readonly': String(readOnly), tabindex: '0' }),
+    ...(emptyText ? [placeholder(emptyText)] : []),
   ]
   React.useLayoutEffect(() => {
     const view = new EditorView({ parent: container.current!, state: EditorState.create({
@@ -74,7 +76,7 @@ export function YamlEditor(props: YamlEditorProps): React.ReactElement {
         indentUnit.of('  '), EditorState.tabSize.of(2),
         keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
         syntaxHighlighting(yamlHighlightStyle), indentGuides,
-        editable.current.of(accessibility(props.readOnly === true, props.label)),
+        editable.current.of(accessibility(props.readOnly === true, props.label, props.placeholder)),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !update.transactions.every((transaction) => transaction.annotation(externalChange))) onChange.current?.(update.state.doc.toString())
         }),
@@ -91,7 +93,7 @@ export function YamlEditor(props: YamlEditorProps): React.ReactElement {
     })
   }, [props.value])
   React.useLayoutEffect(() => {
-    editor.current?.dispatch({ effects: editable.current.reconfigure(accessibility(props.readOnly === true, props.label)) })
-  }, [props.readOnly, props.label])
+    editor.current?.dispatch({ effects: editable.current.reconfigure(accessibility(props.readOnly === true, props.label, props.placeholder)) })
+  }, [props.readOnly, props.label, props.placeholder])
   return React.createElement('div', { ref: container, className: 'dshpm-code-editor', 'data-code-editor': 'yaml' })
 }
