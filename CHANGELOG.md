@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-30
+
+### Fixed
+
+- **The plugin disappeared entirely after DSH updated to 0.2.1-rc.5.**
+  `engines.dsh` pinned `0.2.1-rc.3` exactly, and DSH admits a bundle only when
+  `semver.satisfies(runtimeVersion, engines.dsh)` holds. An exact pin matches
+  one version and nothing else, so the whole bundle was skipped: the Host row
+  never existed and the settings page never registered. `engines.dsh` now
+  targets `0.2.1-rc.5`, which is the version `@deepseek-ai/dsh-app-boot`
+  reports in this installation.
+
+### Changed
+
+- Track the runtime's package line for the two type-only development
+  dependencies: `@deepseek-ai/dsh-api-gateway` and
+  `@deepseek-ai/dsh-typert-registry` move from `0.2.1-rc.3` to `0.2.1-rc.5`.
+  `@deepseek-ai/cordis` stays at `4.0.5`, which is still the runtime's version.
+- Verified against DSH V0.2.1-rc.5. Host service contracts used by the plugin
+  (`agentPresets`, `typert`, `settings`, `dshHomePath`) and the client
+  `settings.section` slot contract are unchanged in this runtime, so no
+  application code needed to change.
+
+### Tooling
+
+- `scripts/verify-bundled.mjs` now runs on Windows: it invokes npm through the
+  current Node executable instead of a `.cmd` shim, resolves the system `tar`
+  rather than the MSYS one, and uses a junction instead of a directory symlink.
+- `scripts/asar-extract.mjs` had an 8-byte offset error that truncated the first
+  characters of every extracted file.
+
 ## [0.5.0] - 2026-10-25
 
 ### Added

@@ -11,6 +11,35 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const base = resolve(tmpdir())
+/**
+ * Run npm through the current Node executable rather than a platform shim.
+ *
+ * Two Windows-specific failures make the obvious `execFileSync('npm', …)`
+ * unusable here: `execFileSync` does not consult `PATHEXT`, so a bare `npm`
+ * misses `npm.cmd` with ENOENT, and Node refuses to spawn a `.cmd` without a
+ * shell (EINVAL). Invoking npm's CLI script with `process.execPath` sidesteps
+ * both, needs no shell quoting, and behaves identically on every platform.
+ */
+const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+const runNpm = (args, options) =>
+  existsSync(npmCli)
+    ? execFileSync(process.execPath, [npmCli, ...args], options)
+    : execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { ...options, shell: true })
+
+/**
+ * Resolve a Windows-native `tar`.
+ *
+ * On Windows a bare `tar` resolves through PATH to the MSYS build shipped with
+ * Git for Bash, which Node cannot execute (`Cannot execute remote shell`). The
+ * operating system's own bsdtar is always present at System32 and handles the
+ * gzip tarball npm produces.
+ */
+const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows'
+const tarCommand =
+  process.platform === 'win32' && existsSync(join(systemRoot, 'System32', 'tar.exe'))
+    ? join(systemRoot, 'System32', 'tar.exe')
+    : 'tar'
+
 const temporary = await mkdtemp(join(base, 'dshpm-pack-'))
 try {
   // `npm publish --dry-run` exports npm_config_dry_run, and npm forwards it to
@@ -19,7 +48,7 @@ try {
   // is the subject of the check, not something to simulate away.
   const environment = { ...process.env }
   delete environment.npm_config_dry_run
-  const result = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', temporary], {
+  const result = JSON.parse(runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', temporary], {
     cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: environment,
   }))[0]
   assert.equal(basename(result.filename), result.filename)
@@ -34,7 +63,7 @@ try {
   ]
   const extracted = join(temporary, 'unpacked')
   await mkdir(extracted)
-  execFileSync('tar', ['-xzf', join(temporary, result.filename), '-C', extracted])
+  execFileSync(tarCommand, ['-xzf', join(temporary, result.filename), '-C', extracted])
   const packedRoot = join(extracted, 'package')
   // Reproduce the installed production dependencies without a network install.
   // Link only dependencies declared by the packed manifest, outside the tarball.
@@ -43,7 +72,14 @@ try {
   for (const dependency of Object.keys(manifest.dependencies ?? {})) {
     const destination = join(extracted, 'node_modules', dependency)
     await mkdir(dirname(destination), { recursive: true })
-    await symlink(dirname(require.resolve(`${dependency}/package.json`)), destination, 'dir')
+    // A Windows directory symlink needs Developer Mode or elevation, while a
+    // junction does not — and a junction is enough here, because the check only
+    // resolves a directory inside this temporary tree.
+    await symlink(
+      dirname(require.resolve(`${dependency}/package.json`)),
+      destination,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    )
   }
   for (const resource of resources) {
     const relative = `resources/${resource}`

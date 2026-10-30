@@ -1,6 +1,6 @@
 {
   "name": "@rvaim/dsh-preset-manager",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "DeepSeek Harness Agent preset manager: register and manage agent presets at runtime without editing any DSH configuration file.",
   "keywords": [
     "deepseek-harness",
@@ -63,7 +63,7 @@
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.2.1-rc.3"
+    "dsh": "0.2.1-rc.5"
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
@@ -87,8 +87,8 @@
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.15",
     "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
     "@lezer/highlight": "1.2.5",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.19.2",

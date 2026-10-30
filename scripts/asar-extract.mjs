@@ -22,9 +22,11 @@ const headerBuffer = Buffer.alloc(headerStringSize)
 readSync(fd, headerBuffer, 0, headerStringSize, 16)
 const header = JSON.parse(headerBuffer.toString('utf8'))
 
-// The data area begins after the aligned pickle that follows the header JSON.
-const dataOffset = 8 + headerPickleSize
-const baseOffset = dataOffset + 8
+// The file data begins immediately after the 8-byte size field plus the whole
+// header pickle. `headerPickleSize` already covers the pickle's own length
+// prefix and its JSON payload, so adding another 8 here would shift every
+// extracted byte forward and silently truncate the first characters of a file.
+const baseOffset = 8 + headerPickleSize
 
 const segments = innerPath.split('/').filter((segment) => segment !== '')
 let node = header

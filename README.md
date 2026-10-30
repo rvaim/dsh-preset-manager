@@ -6,7 +6,7 @@
 [![license](https://img.shields.io/npm/l/@rvaim/dsh-preset-manager.svg)](./LICENSE)
 
 - 包名：`@rvaim/dsh-preset-manager`
-- 版本：`0.5.0`
+- 版本：`0.5.1`
 - 中文名：Agent 预设管理器
 - 设置页：DSH Web「设置 → 预设管理」
 - 数据目录：`$DSH_HOME/dsh-preset-manager/`
@@ -62,7 +62,7 @@ DSH 的 Agent 预设原本只能在 Cordis 组合（`cordis.patch.yml` 或 Bundl
 
 ## 2. 已实现且验证通过
 
-以下项目都在**本机真实的 DSH V0.2.1-rc.2 运行时**上验证过，不是推断。
+以下项目都在**本机真实的 DSH V0.2.1-rc.5 运行时**上验证过，不是推断。
 
 | 能力 | 验证方式 | 结果 |
 |---|---|---|
@@ -521,7 +521,8 @@ node scripts/e2e-installed.mjs                 # 针对已安装产物
 
 ## 13. 版本兼容
 
-- 开发与验证环境：**DSH V0.2.1-rc.2**（桌面端，Electron 44.7.0），Node 24。
+- 开发与验证环境：**DSH V0.2.1-rc.5**（桌面端），Node 24.21.0。
+- `engines.dsh` 精确 pin 到 `0.2.1-rc.5`；DSH 用 `semver.satisfies(运行时版本, engines.dsh)` 判定，精确 pin 与运行时不一致时**整个 Bundle 会被跳过**（插件行不出现，设置页也不出现）。升级 DSH 后若插件「凭空消失」，先核对这里的版本。
 - 依赖的公开接口：`ctx.agentPresets.{register,list,readDocument}`、`ctx.typert.register`、`ctx.slots.{inject,register}`、`ctx.locale.{register,bind}`、`ctx.remote.$mount`、`dshHomePath`。
 - 未使用：任何私有字段、`register` 的内部 `definitions` Map、DOM 查询、官方前端源码改写。
 - 若 DSH 升级后 `AgentPresetRegistry` 的语义变化（例如允许重复 ID、或不再回读 `broken`），`DynamicPresetRegistryAdapter` 是唯一需要修改的地方。
