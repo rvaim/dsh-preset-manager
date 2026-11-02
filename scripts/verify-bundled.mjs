@@ -60,6 +60,7 @@ try {
     'redteam-mode/user-original.md', 'redteam-mode/adaptive-execution.md',
     'codex-original/prompt.md', 'codex-original/provenance.json',
     'codex-original/LICENSE', 'codex-original/NOTICE', 'codex-original/SOURCE.md',
+    'codex-modified/prompt.md', 'codex-modified/SOURCE.md',
   ]
   const extracted = join(temporary, 'unpacked')
   await mkdir(extracted)
@@ -115,8 +116,10 @@ try {
     assert.equal(prompts['redteam-mode'], userOriginal.replace('## 身份\n', `${addition}## 身份\n`))
     assert.equal(prompts['redteam-mode'].replace(addition, ''), userOriginal)
     assert.equal(prompts['codex-original'], await readFile(join(root, 'resources/codex-original/prompt.md'), 'utf8'))
+    assert.equal(prompts['codex-modified'], await readFile(join(root, 'resources/codex-modified/prompt.md'), 'utf8'))
     assert.equal(prompts['standard-efficient'], await readFile(join(root, 'resources/standard-efficient/prefix.md'), 'utf8'))
     assert.equal(prompts['codex-original'].includes('{{'), false)
+    assert.equal(prompts['codex-modified'].includes('{{'), false)
     assert.deepEqual([...prompts['standard-efficient'].matchAll(/\{\{([^{}]*)\}\}/g)].map((match) => match[1]), ['model'])
   } finally {
     globalThis.fetch = originalFetch

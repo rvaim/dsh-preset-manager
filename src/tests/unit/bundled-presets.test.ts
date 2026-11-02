@@ -90,6 +90,7 @@ describe('bundled preset derivation', () => {
     assert.deepEqual(tokens(prompts['standard-efficient']), ['model'])
     assert.deepEqual(tokens(prompts['redteam-mode']), [])
     assert.equal(prompts['codex-original'].includes('{{'), false)
+    assert.equal(prompts['codex-modified'].includes('{{'), false)
     assert.throws(() => deriveBundledPresets(standard, { ...prompts, 'codex-original': '{{model}}' }), /refusing to interpolate/)
     assert.throws(() => deriveBundledPresets(standard, { ...prompts, 'standard-efficient': '{{unknown}}' }), /unexpected prompt variable/)
   })
@@ -208,6 +209,21 @@ describe('local prompt resources', () => {
     assert.deepEqual(loaded[0]!.plugins.find((row) => row.id === 'tool-bash')!.disabled, { __jsExpr: "process.platform === 'win32'" })
   })
 
+  it('loads a minimally DSH-adapted Codex variant without touching the original', async () => {
+    const modified = await readFile(new URL('codex-modified/prompt.md', resources), 'utf8')
+    assert.equal(prompts['codex-modified'], modified)
+    assert.equal(prompts['codex-modified'].includes('Codex'), false)
+    assert.equal(prompts['codex-modified'].includes('OpenAI'), false)
+    assert.equal(prompts['codex-modified'].includes('update_plan'), false)
+    assert.equal(prompts['codex-modified'].includes('apply_patch'), false)
+    assert.ok(prompts['codex-modified'].includes('DSH (DeepSeek Harness)'))
+    assert.ok(prompts['codex-modified'].includes('`todo_write`'))
+    assert.ok(prompts['codex-modified'].includes('`edit`'))
+    assert.equal(prompts['codex-modified'].split('\n').length, prompts['codex-original'].split('\n').length)
+    const original = await readFile(new URL('codex-original/prompt.md', resources))
+    assert.equal(createHash('sha256').update(original).digest('hex'), 'ac8ae107a0d72fe3476b430afb161ea4e67da2e446d778aefc44828160559807')
+  })
+
   it('rejects a modified local Codex original', async () => {
     const base = resolve(tmpdir())
     const temporary = await mkdtemp(join(base, 'dshpm-prompts-'))
@@ -230,7 +246,7 @@ describe('bundled registration lifecycle', () => {
     const first = owner.start()
     assert.equal(owner.start(), first)
     assert.deepEqual(await first, [])
-    assert.deepEqual(fake.attempts.map((entry) => entry.id), ['standard-efficient', 'codex-original', 'redteam-mode'])
+    assert.deepEqual(fake.attempts.map((entry) => entry.id), ['standard-efficient', 'codex-original', 'codex-modified', 'redteam-mode'])
     assert.equal(owner.owns('standard'), false)
     const document = await fake.readDocument('codex-original')
     assert.equal((parsePluginRows(document.content)[0]!.config as Record<string, unknown>).prefix, prompts['codex-original'])
@@ -239,6 +255,7 @@ describe('bundled registration lifecycle', () => {
     assert.deepEqual(fake.ids(), ['standard'])
     assert.equal(fake.disposalCounts.get('standard-efficient'), 1)
     assert.equal(fake.disposalCounts.get('codex-original'), 1)
+    assert.equal(fake.disposalCounts.get('codex-modified'), 1)
   })
 
   it('preserves both an existing foreign registration and an unregistered user collision', async () => {
@@ -249,7 +266,7 @@ describe('bundled registration lifecycle', () => {
     const issues = await owner.start()
     assert.equal(issues.filter((issue) => issue.code === 'bundled.id-conflict').length, 2)
     // The colliding ids are skipped; the remaining declaration still registers.
-    assert.deepEqual(fake.attempts.map((entry) => entry.id), ['redteam-mode'])
+    assert.deepEqual(fake.attempts.map((entry) => entry.id), ['codex-modified', 'redteam-mode'])
     assert.deepEqual(await fake.readDocument('standard-efficient'), before)
     await owner.dispose()
     assert.deepEqual(await fake.readDocument('standard-efficient'), before)

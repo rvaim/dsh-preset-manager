@@ -78,6 +78,7 @@ describe('native preset rows', () => {
     for (const [id, chinese, english] of [
       ['standard-efficient', '标准增强', 'Standard Efficient'],
       ['codex-original', 'Codex 原版', 'Codex Original'],
+      ['codex-modified', 'Codex 修改', 'Codex Modified'],
     ] as const) {
       const summary = { ...source, id, name: chinese }
       assert.equal(presetDisplay(summary, t).name, chinese)

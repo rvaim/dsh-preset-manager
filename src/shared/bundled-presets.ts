@@ -25,6 +25,14 @@ export const BUNDLED_PRESETS = [
     templateVariables: [],
   },
   {
+    id: 'codex-modified',
+    name: 'Codex 修改',
+    englishName: 'Codex Modified',
+    description: '在 Codex 原版提示词基础上做最小 DSH 适配的实验预设',
+    promptFile: 'codex-modified/prompt.md',
+    templateVariables: [],
+  },
+  {
     id: 'redteam-mode',
     name: '红队模式',
     englishName: 'Red Team Mode',

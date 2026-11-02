@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-02
+
+### Added
+
+- Ship `codex-modified` / Codex 修改, a minimal DSH adaptation of the
+  `codex-original` prompt: product identity, `todo_write` planning tool,
+  `edit`/`write` file tools, and CLI-rendering wording are aligned with DSH
+  while the original section structure stays intact. The upstream original
+  remains unchanged and both presets derive from the current Standard tree.
+
+### Tests
+
+- Verify the modified prompt is loaded from local resources offline and its
+  derived preset appears alongside the existing bundled presets.
+
 ## [0.5.1] - 2026-10-30
 
 ### Fixed

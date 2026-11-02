@@ -259,6 +259,10 @@ export const en: Record<string, unknown> = {
       "name": "Codex Original",
       "description": "An experimental preset using the unmodified public base prompt from OpenAI Codex."
     },
+    "codex-modified": {
+      "name": "Codex Modified",
+      "description": "An experimental preset with a minimally DSH-adapted version of the Codex Original prompt."
+    },
     "redteam-mode": {
       "name": "Red Team Mode",
       "description": "Red-team exercise mode: intent normalization, 25 domain-routing rules, deterministic output slots, and output self-checks."

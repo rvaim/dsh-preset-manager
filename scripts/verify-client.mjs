@@ -210,7 +210,7 @@ try {
   check('read-only diagnostics reflect the actual page store', () => {
     assert.equal(status.mountStatus, 'ready')
     assert.equal(status.loadStatus, 'ready')
-    assert.equal(status.presetCount, 5)
+    assert.equal(status.presetCount, 6)
     assert.doesNotThrow(() => JSON.stringify(status))
   })
 
@@ -219,6 +219,7 @@ try {
   const bundledText = {
     'standard-efficient': await readFile(join(dist, '..', 'resources/standard-efficient/prefix.md'), 'utf8'),
     'codex-original': await readFile(join(dist, '..', 'resources/codex-original/prompt.md'), 'utf8'),
+    'codex-modified': await readFile(join(dist, '..', 'resources/codex-modified/prompt.md'), 'utf8'),
     'redteam-mode': redteamDocument.plugins[0].config.prefix,
   }
   const codexText = bundledText['codex-original']
@@ -234,7 +235,7 @@ try {
     assert.equal(detail.editable, false)
     const persona = detail.definition.plugins.find((row) => row.name === '@deepseek-ai/dsh-persona')
     assert.equal(persona.config.prefix, bundledText[id])
-    assert.equal(detail.definition.name, { 'standard-efficient': '标准增强', 'codex-original': 'Codex 原版', 'redteam-mode': '红队模式' }[id])
+    assert.equal(detail.definition.name, { 'standard-efficient': '标准增强', 'codex-original': 'Codex 原版', 'codex-modified': 'Codex 修改', 'redteam-mode': '红队模式' }[id])
     if (id === 'redteam-mode') {
       assert.deepEqual(detail.definition, redteamDocument)
     } else {
@@ -633,7 +634,7 @@ try {
   await registeredTools.get('preset_manager_set_enabled').execute({ id: 'codex-original', enabled: true })
   await registeredTools.get('preset_manager_set_enabled').execute({ id: 'switch-persist', enabled: true })
   check('Host reactivation registers every bundled preset without duplicate IDs', () => {
-    for (const id of ['standard-efficient', 'codex-original', 'redteam-mode']) assert.ok(rows.has(id))
+    for (const id of ['standard-efficient', 'codex-original', 'codex-modified', 'redteam-mode']) assert.ok(rows.has(id))
     assert.notEqual(replacementSnapshot.presets.find((row) => row.id === 'redteam-mode').enabled, false)
   })
   await replacementHost.dispose()

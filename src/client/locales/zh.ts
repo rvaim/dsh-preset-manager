@@ -259,6 +259,10 @@ export const zh: Record<string, unknown> = {
       "name": "Codex 原版",
       "description": "使用 OpenAI Codex 官方公开基础提示词原文的实验预设"
     },
+    "codex-modified": {
+      "name": "Codex 修改",
+      "description": "在 Codex 原版提示词基础上做最小 DSH 适配的实验预设"
+    },
     "redteam-mode": {
       "name": "红队模式",
       "description": "红队对抗演练模式 —— 意图归一化 + 25 条域规则路由 + 确定性输出槽 + 破甲自检"
