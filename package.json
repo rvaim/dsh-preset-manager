@@ -1,6 +1,6 @@
 {
   "name": "@rvaim/dsh-preset-manager",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "DeepSeek Harness Agent preset manager: register and manage agent presets at runtime without editing any DSH configuration file.",
   "keywords": [
     "deepseek-harness",
@@ -63,16 +63,17 @@
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.2.2-rc.1"
+    "dsh": "^0.2.1-rc.5"
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "node scripts/run-tests.mjs",
-    "verify": "npm run typecheck && npm run test && npm run build && npm run verify:binding && npm run verify:client && npm run verify:bundled",
+    "verify": "npm run verify:compat && npm run typecheck && npm run test && npm run build && npm run verify:binding && npm run verify:client && npm run verify:bundled",
     "prepublishOnly": "npm run verify",
     "pack:check": "npm pack --dry-run",
+    "verify:compat": "node scripts/verify-compat.mjs",
     "verify:binding": "node scripts/verify-binding.mjs",
     "verify:bundled": "node scripts/verify-bundled.mjs",
     "verify:client": "node scripts/verify-client.mjs"
@@ -88,6 +89,7 @@
     "@codemirror/view": "6.43.15",
     "@deepseek-ai/cordis": "4.1.0",
     "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-app-boot": "0.2.2-rc.1",
     "@deepseek-ai/dsh-typert-registry": "0.2.2-rc.1",
     "@lezer/highlight": "1.2.5",
     "@types/js-yaml": "^4.0.9",
@@ -96,6 +98,7 @@
     "@types/react-dom": "^18.3.1",
     "esbuild": "^0.25.10",
     "react": "^18.3.1",
+    "semver": "^7.8.5",
     "typescript": "^5.9.3"
   }
 }

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-06
+
+### Changed
+
+- Replace the exact `engines.dsh` pin with the bounded range `^0.2.1-rc.5`.
+  DSH's `evaluatePluginCompatibility()` admits a bundle only when
+  `semver.satisfies(runtimeVersion, engines.dsh, { includePrerelease: true })`
+  holds; an exact pin matches one runtime version and nothing else, which is why
+  the plugin disappeared on every DSH upgrade (0.2.1-rc.3 -> rc.5 -> 0.2.2-rc.1).
+  The caret range covers subsequent 0.2.x prereleases while still excluding
+  0.3.0 and its prereleases, so upgrading DSH no longer requires a new release
+  of this plugin.
+- Add `scripts/verify-compat.mjs` and run it first in `npm run verify` (and thus
+  in `prepublishOnly`). It calls the runtime's own exported
+  `evaluatePluginCompatibility()` / `getDshRuntimeVersion()` against this
+  package's manifest, asserts `engines.dsh` is still a range, and asserts the
+  verification SDK (`@deepseek-ai/dsh-app-boot`, `@deepseek-ai/dsh-api-gateway`,
+  `@deepseek-ai/dsh-typert-registry`, `@deepseek-ai/cordis`) stays on the
+  runtime's version line. A forgotten manifest sync now fails the build instead
+  of silently dropping the bundle at runtime.
+- No application code changed: the Host/Client contracts this plugin calls were
+  compared between 0.2.1-rc.5 and 0.2.2-rc.1 and are unchanged.
+
 ## [0.6.1] - 2026-11-06
 
 ### Changed
