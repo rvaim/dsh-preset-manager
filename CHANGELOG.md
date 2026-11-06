@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-06
+
+### Changed
+
+- Track the DSH V0.2.2-rc.1 runtime line (the version
+  `@deepseek-ai/dsh-app-boot` reports in the running Desktop installation):
+  `engines.dsh` moves from `0.2.1-rc.5` to `0.2.2-rc.1`. DSH skips a whole
+  bundle when the exact pin does not match the runtime, which removes the
+  plugin row and the settings page entirely.
+- Align the three type-only development dependencies with the runtime:
+  `@deepseek-ai/dsh-api-gateway` and `@deepseek-ai/dsh-typert-registry` to
+  `0.2.2-rc.1`, `@deepseek-ai/cordis` from `4.0.5` to `4.1.0`.
+- Verified with the full suite against that SDK line. The Host/Client contracts
+  the plugin calls (`agentPresets.{register,list,readDocument}`,
+  `typert.register`, `slots.{inject,register}`, `locale.{register,bind}`,
+  `remote.$mount`, `tools.register`, `settings.describe`, `loader.await`,
+  `dshHomePath`, `cordisInspect.register`) are unchanged between
+  0.2.1-rc.5 and 0.2.2-rc.1, so no application code changed.
+
 ## [0.6.0] - 2026-11-02
 
 ### Added
